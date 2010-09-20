@@ -24,6 +24,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <sys/time.h>
+
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -108,6 +110,8 @@ mongo_message * mongo_message_create( int len , int id , int responseTo , int op
    connection stuff
    ------------------------------ */
 static int mongo_connect_helper( mongo_connection * conn ){
+    struct timeval t_timeout;
+  
     /* setup */
     conn->sock = 0;
     conn->connected = 0;
@@ -125,11 +129,19 @@ static int mongo_connect_helper( mongo_connection * conn ){
     }
 
     if ( connect( conn->sock , (struct sockaddr*)&conn->sa , conn->addressSize ) ){
+        close( conn->sock );
         return mongo_conn_fail;
     }
 
     /* nagle */
     setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one) );
+    
+    
+    t_timeout.tv_usec = 0;
+    t_timeout.tv_sec = 60;
+    
+    setsockopt( conn->sock, IPPROTO_TCP, SO_RCVTIMEO, (char *) &t_timeout, sizeof(t_timeout) );
+    setsockopt( conn->sock, IPPROTO_TCP, SO_SNDTIMEO, (char *) &t_timeout, sizeof(t_timeout) );
 
     /* TODO signals */
 
