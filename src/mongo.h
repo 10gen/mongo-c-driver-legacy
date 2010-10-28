@@ -1,6 +1,7 @@
 /* mongo.h */
 
 /*    Copyright 2009, 2010 10gen Inc.
+ *    Copyright 2010 Kaspersky Labs GmbH
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -40,6 +41,17 @@ typedef struct mongo_connection_options {
     int port;
 } mongo_connection_options;
 
+
+#if defined(MONGO_ASYNC)
+
+typedef struct mongo_connection_buffer {
+    uint8_t * data;
+    size_t length, size, offset;
+} mongo_connection_buffer;
+
+#endif /* MONGO_ASYNC */
+
+
 typedef struct {
     mongo_connection_options* left_opts; /* always current server */
     mongo_connection_options* right_opts; /* unused with single server */
@@ -48,6 +60,11 @@ typedef struct {
     int sock;
     bson_bool_t connected;
     mongo_exception_context exception;
+
+#if defined(MONGO_ASYNC)
+    bson_bool_t async;
+    mongo_connection_buffer in, out;
+#endif
 } mongo_connection;
 
 #pragma pack(1)
@@ -117,6 +134,13 @@ bson_bool_t mongo_disconnect( mongo_connection * conn ); /* use this if you want
 bson_bool_t mongo_destroy( mongo_connection * conn ); /* you must call this even if connection failed */
 
 
+#if defined(MONGO_ASYNC)
+
+void mongo_async_create( mongo_connection * conn, int fd );
+short mongo_async_pollmask( mongo_connection * conn );
+int mongo_async_consume( mongo_connection * conn, short events );
+
+#endif /* MONGO_ASYNC */
 
 /* ----------------------------
    CORE METHODS - insert update remove query getmore
@@ -132,6 +156,10 @@ void mongo_update(mongo_connection* conn, const char* ns, const bson* cond, cons
 void mongo_remove(mongo_connection* conn, const char* ns, const bson* cond);
 
 mongo_cursor* mongo_find(mongo_connection* conn, const char* ns, bson* query, bson* fields ,int nToReturn ,int nToSkip, int options);
+#if defined(MONGO_ASYNC)
+void mongo_find_request(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options);
+mongo_cursor* mongo_find_response(mongo_connection* conn, const char* ns);
+#endif
 bson_bool_t mongo_cursor_next(mongo_cursor* cursor);
 void mongo_cursor_destroy(mongo_cursor* cursor);
 

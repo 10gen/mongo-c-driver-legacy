@@ -1,6 +1,7 @@
 /* mongo.c */
 
 /*    Copyright 2009, 2010 10gen Inc.
+ *    Copyright 2010 Kaspersky Labs GmbH
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -28,9 +29,83 @@
 #include <unistd.h>
 #endif
 
+#if defined(MONGO_ASYNC)
+#include <poll.h>
+#include <errno.h>
+#endif
+
 /* only need one of these */
 static const int zero = 0;
 static const int one = 1;
+
+#if defined(MONGO_ASYNC)
+
+static inline void mongo_buffer_append(mongo_connection_buffer * buffer, void * data, size_t length)
+{
+    if(!buffer->data)
+    {
+        buffer->data = malloc(512);
+        buffer->size = 512;
+        buffer->length = 0;
+        buffer->offset = 0;
+    }
+
+    if(buffer->offset + buffer->length + length >= buffer->size)
+    { /* We would write over the end of allocated space... */
+        if(buffer->length + length >= buffer->size)
+        { /* Not enough space in current buffer, allocate more. */
+        #if defined(__x86_64__) || defined(__x86__)
+            buffer->size = buffer->length + length;
+            __asm__("bsr %0, %%ecx\n\tmov $2, %0\n\tshl %%cl, %0" : "=g" (buffer->size) : "0" (buffer->size) : "ecx" );
+        #else
+            do {
+                buffer->size = buffer->size << 1;
+            } while(buffer->length + length >= buffer->size);
+        #endif
+
+            buffer->data = realloc(buffer->data, buffer->size);
+
+            if(buffer->offset + buffer->length + length < buffer->size) {
+                memmove(buffer->data, buffer->data + buffer->offset, buffer->length);
+                buffer->offset = 0;
+            }
+        } else /* invariant: (buffer->offset + (buffer->size - buffer->length) >= length) */
+        { /* We have enough space but we need to move something.. FIXME: benchmark maximum move size */
+            memmove(buffer->data, buffer->data + buffer->offset, buffer->length);
+            buffer->offset = 0;
+        }
+    }
+
+    memcpy(buffer->data + buffer->offset + buffer->length, data, length);
+    buffer->length += length;
+}
+
+static inline void mongo_buffer_erase(mongo_connection_buffer * buffer, size_t erased)
+{
+    if(erased > buffer->length)
+        erased = buffer->length;
+
+    buffer->offset += erased;
+    buffer->length -= erased;
+
+    if(buffer->length < buffer->size >> 1 && buffer->size > 512) {
+    #if defined(__x86_64__) || defined(__x86__)
+        buffer->size = buffer->length;
+        __asm__("bsr %0, %%ecx\n\tmov $2, %0\n\tshl %%cl, %0" : "=g" (buffer->size) : "0" (buffer->size) : "ecx" );
+    #else
+        do {
+            buffer->size = buffer->size >> 1;
+        } while(buffer->length >= buffer->size);
+    #endif
+
+        memmove(buffer->data, buffer->data + buffer->offset, buffer->length);
+        buffer->offset = 0;
+        buffer->data = realloc(buffer->data, buffer->size);
+    }
+}
+
+
+#endif /* MONGO_ASYNC */
 
 /* ----------------------------
    message stuff
@@ -63,14 +138,23 @@ void mongo_message_send(mongo_connection * conn, mongo_message* mm){
     bson_little_endian32(&head.id, &mm->head.id);
     bson_little_endian32(&head.responseTo, &mm->head.responseTo);
     bson_little_endian32(&head.op, &mm->head.op);
-    
-    MONGO_TRY{
-        looping_write(conn, &head, sizeof(head));
-        looping_write(conn, &mm->data, mm->head.len - sizeof(head));
-    }MONGO_CATCH{
-        free(mm);
-        MONGO_RETHROW();
+
+#if defined(MONGO_ASYNC)
+    if(conn->async){        
+        mongo_buffer_append(&conn->out, &head, sizeof(head));
+        mongo_buffer_append(&conn->out, &mm->data, mm->head.len - sizeof(head));
+    } else
+#endif
+    {
+        MONGO_TRY{
+            looping_write(conn, &head, sizeof(head));
+            looping_write(conn, &mm->data, mm->head.len - sizeof(head));
+        }MONGO_CATCH{
+            free(mm);
+            MONGO_RETHROW();
+        }
     }
+
     free(mm);
 }
 
@@ -140,6 +224,10 @@ static int mongo_connect_helper( mongo_connection * conn ){
 mongo_conn_return mongo_connect( mongo_connection * conn , mongo_connection_options * options ){
     MONGO_INIT_EXCEPTION(&conn->exception);
 
+#if defined(MONGO_ASYNC)
+    conn->async = 0;
+#endif
+
     conn->left_opts = bson_malloc(sizeof(mongo_connection_options));
     conn->right_opts = NULL;
 
@@ -162,6 +250,10 @@ static void swap_repl_pair(mongo_connection * conn){
 mongo_conn_return mongo_connect_pair( mongo_connection * conn , mongo_connection_options * left, mongo_connection_options * right ){
     conn->connected = 0;
     MONGO_INIT_EXCEPTION(&conn->exception);
+
+#if defined(MONGO_ASYNC)
+    conn->async = 0;
+#endif
 
     conn->left_opts = NULL;
     conn->right_opts = NULL;
@@ -205,6 +297,73 @@ mongo_conn_return mongo_reconnect( mongo_connection * conn ){
     /* failed to connect to both servers */
     return ret;
 }
+
+
+#if defined(MONGO_ASYNC)
+
+void mongo_async_create( mongo_connection * conn, int fd )
+{
+    conn->left_opts = conn->right_opts = NULL;
+    conn->sock = fd;
+    conn->connected = 1;
+    conn->async = 1;
+
+    conn->in.data = 0;
+    conn->in.length = 0;
+    conn->out.data = 0;
+    conn->out.length = 0;
+}
+
+short mongo_async_pollmask( mongo_connection * conn )
+{
+    short result = POLLERR | POLLHUP | POLLIN;
+
+    if(conn->out.length)
+        result |= POLLOUT;
+
+    return result;
+}
+
+int mongo_async_consume( mongo_connection * conn, short events )
+{
+    uint8_t buffer[4096];
+    int result;
+
+    if(events & (POLLERR | POLLHUP))
+        return -1;
+
+    if(events & POLLOUT)
+    {
+        result = send(conn->sock, conn->out.data + conn->out.offset, conn->out.length, 0);
+        
+        if(result > 0)
+            mongo_buffer_erase(&conn->out, result);
+        else if(result == 0 || (errno != EAGAIN && errno != EWOULDBLOCK))
+            return -1;
+    }
+
+    if(events & POLLIN)
+    {
+        uint32_t length;
+        result = recv(conn->sock, buffer, sizeof(buffer), 0);
+
+        if(result > 0)
+            mongo_buffer_append(&conn->in, buffer, result);
+        else if(result == 0 || (errno != EAGAIN && errno != EWOULDBLOCK))
+            return -1;
+
+        if(conn->in.length < sizeof(uint32_t))
+            return 0;
+
+        bson_little_endian32(&length, (uint32_t *) &conn->in.data[conn->in.offset]);
+        return conn->in.length >= length;
+    }
+
+    return 0;
+}
+
+#endif /* MONGO_ASYNC */
+
 
 void mongo_insert_batch( mongo_connection * conn , const char * ns , bson ** bsons, int count){
     int size =  16 + 4 + strlen( ns ) + 1;
@@ -289,13 +448,22 @@ mongo_reply * mongo_read_response( mongo_connection * conn ){
     mongo_reply * out; /* native endian */
     int len;
 
-    looping_read(conn, &head, sizeof(head));
-    looping_read(conn, &fields, sizeof(fields));
+#if defined(MONGO_ASYNC)
+    if(conn->async) {
+        if(conn->in.length < sizeof(head) + sizeof(fields)) {
+            MONGO_THROW(MONGO_EXCEPT_NETWORK);
+        }
+
+        memcpy(&head, &conn->in.data[conn->in.offset], sizeof(head));
+        memcpy(&fields, &conn->in.data[conn->in.offset + sizeof(head)], sizeof(fields));
+    } else
+#endif
+    {
+        looping_read(conn, &head, sizeof(head));
+        looping_read(conn, &fields, sizeof(fields));
+    }
 
     bson_little_endian32(&len, &head.len);
-
-    if (len < sizeof(head)+sizeof(fields) || len > 64*1024*1024)
-        MONGO_THROW(MONGO_EXCEPT_NETWORK); /* most likely corruption */
 
     out = (mongo_reply*)bson_malloc(len);
 
@@ -309,19 +477,44 @@ mongo_reply * mongo_read_response( mongo_connection * conn ){
     bson_little_endian32(&out->fields.start, &fields.start);
     bson_little_endian32(&out->fields.num, &fields.num);
 
-    MONGO_TRY{
-        looping_read(conn, &out->objs, len-sizeof(head)-sizeof(fields));
-    }MONGO_CATCH{
-        free(out);
-        MONGO_RETHROW();
+#if defined(MONGO_ASYNC)
+    if(conn->async) {
+        if(conn->in.length < len || len < sizeof(head) + sizeof(fields)) {
+            MONGO_THROW(MONGO_EXCEPT_NETWORK);
+        }
+
+        memcpy(&out->objs, &conn->in.data[conn->in.offset + sizeof(head) + sizeof(fields)], len-sizeof(head)-sizeof(fields));
+        mongo_buffer_erase(&conn->in, len);
+    } else
+#endif
+    {
+        if (len < sizeof(head)+sizeof(fields) || len > 64*1024*1024)
+            MONGO_THROW(MONGO_EXCEPT_NETWORK); /* most likely corruption */
+
+        MONGO_TRY{
+            looping_read(conn, &out->objs, len-sizeof(head)-sizeof(fields));
+        }MONGO_CATCH{
+            free(out);
+            MONGO_RETHROW();
+        }
     }
 
     return out;
 }
 
+
+#if defined(MONGO_ASYNC)
+mongo_cursor* mongo_find(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options){
+    mongo_find_request(conn, ns, query, fields, nToReturn, nToSkip, options);
+	return mongo_find_response(conn, ns);
+}
+
+void mongo_find_request(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options){
+#else
 mongo_cursor* mongo_find(mongo_connection* conn, const char* ns, bson* query, bson* fields, int nToReturn, int nToSkip, int options){
     int sl;
     mongo_cursor * cursor;
+#endif
     char * data;
     mongo_message * mm = mongo_message_create( 16 + /* header */
                                                4 + /*  options */
@@ -344,6 +537,13 @@ mongo_cursor* mongo_find(mongo_connection* conn, const char* ns, bson* query, bs
     bson_fatal_msg( (data == ((char*)mm) + mm->head.len), "query building fail!" );
 
     mongo_message_send( conn , mm );
+#if defined(MONGO_ASYNC)
+}
+
+mongo_cursor* mongo_find_response(mongo_connection* conn, const char* ns){
+    int sl;
+    mongo_cursor * cursor;
+#endif
 
     cursor = (mongo_cursor*)bson_malloc(sizeof(mongo_cursor));
 
@@ -409,6 +609,12 @@ int64_t mongo_count(mongo_connection* conn, const char* db, const char* ns, bson
 }
 
 bson_bool_t mongo_disconnect( mongo_connection * conn ){
+#if defined(MONGO_ASYNC)
+    if( conn->async ){
+        return 0;
+    }
+#endif
+
     if ( ! conn->connected )
         return 1;
 
@@ -425,6 +631,20 @@ bson_bool_t mongo_disconnect( mongo_connection * conn ){
 }
 
 bson_bool_t mongo_destroy( mongo_connection * conn ){
+#if defined(MONGO_ASYNC)
+    if(conn->async){
+        if(conn->in.data){
+            free(conn->in.data);
+            conn->out.data = 0;
+        }
+
+        if(conn->out.data){
+            free(conn->out.data);
+            conn->out.data = 0;
+        }
+    }
+#endif
+
     free(conn->left_opts);
     free(conn->right_opts);
     conn->left_opts = NULL;
@@ -457,7 +677,12 @@ bson_bool_t mongo_cursor_get_more(mongo_cursor* cursor){
             cursor->mm = mongo_read_response(cursor->conn);
         }MONGO_CATCH{
             cursor->mm = NULL;
-            mongo_cursor_destroy(cursor);
+#if defined(MONGO_ASYNC)
+            if(!cursor->conn->async)
+#endif
+            {
+                mongo_cursor_destroy(cursor);
+            }
             MONGO_RETHROW();
         }
 

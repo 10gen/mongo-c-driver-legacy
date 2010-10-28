@@ -22,6 +22,12 @@ AddOption('--d',
           action='store_false',
           help='disable optimizations')
 
+AddOption('--async',
+	  dest='async',
+	  default=False,
+	  action='store_true',
+	  help='enable asynchronous code')
+
 import os
 import sys
 
@@ -43,6 +49,10 @@ if os.sys.platform in ["darwin", "linux2"]:
         # -O3 benchmarks *significantly* faster than -O2 when disabling networking
 elif 'win32' == os.sys.platform:
     env.Append( LIBS='ws2_32' )
+
+
+if os.sys.platform in ['darwin', 'linux2' ] and GetOption('async'):
+	env.Append( CPPDEFINES="MONGO_ASYNC" )
         
 
 #we shouldn't need these options in c99 mode
@@ -97,6 +107,10 @@ testEnv = benchmarkEnv.Clone()
 testCoreFiles = [ ]
 
 tests = Split('sizes resize endian_swap all_types simple update errors count_delete auth pair')
+
+if os.sys.platform in ['darwin', 'linux2' ] and GetOption('async'):
+    tests.append('buffer')
+    tests.append('async')
 
 if have_libjson:
     tests.append('json')
