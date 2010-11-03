@@ -35,7 +35,7 @@
 #endif
 
 
-#if defined(MONGO_HAVE_STDINT) || __STDC_VERSION__ >= 199901L
+#if defined(MONGO_HAVE_STDINT) || defined(HAVE_STDINT_H) ||  __STDC_VERSION__ >= 199901L
 #include <stdint.h>
 #elif defined(MONGO_HAVE_UNISTD)
 #include <unistd.h>
