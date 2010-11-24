@@ -19,7 +19,7 @@
 #define _MONGO_H_
 
 #include <sys/time.h>
-#include <signal.h>
+#include <errno.h>
 
 #include "mongo_except.h"
 #include "bson.h"
@@ -127,7 +127,7 @@ bson_bool_t mongo_destroy( mongo_connection * conn ); /* you must call this even
    CORE METHODS - insert update remove query getmore
    ------------------------------ */
 
-void mongo_insert( mongo_connection * conn , const char * ns , bson * data );
+int mongo_insert( mongo_connection * conn , const char * ns , bson * data );
 void mongo_insert_batch( mongo_connection * conn , const char * ns , bson ** data , int num );
 
 static const int MONGO_UPDATE_UPSERT = 0x1;

@@ -36,31 +36,40 @@ static const int one = 1;
    message stuff
    ------------------------------ */
 
-static void looping_write(mongo_connection * conn, const void* buf, int len){
-    struct sigaction sa;
-    sa.sa_handler = SIG_IGN;
+static int looping_write(mongo_connection * conn, const void* buf, int len){
     const char* cbuf = buf;
+    int flags = 0;
+    
+    if (conn->left_opts->ignore_sigpipe)
+        flags = flags | MSG_NOSIGNAL;
+    if (conn->left_opts->timeout.tv_sec == 0 && conn->left_opts->timeout.tv_usec == 0)
+        flags = flags | MSG_DONTWAIT;
+    
     while (len){
-        if (conn->left_opts->ignore_sigpipe) {
-            sigaction(SIGPIPE, &sa, NULL);
+        int sent = send(conn->sock, cbuf, len,  flags);
+        if (sent == -1) {
+            if (errno == EPIPE)
+                return -1;
+            return 1;
         }
-        int sent = send(conn->sock, cbuf, len, 0);
-        if (sent == -1) MONGO_THROW(MONGO_EXCEPT_NETWORK);
         cbuf += sent;
         len -= sent;
     }
+
+    return 0;
 }
 
 static void looping_read(mongo_connection * conn, void* buf, int len){
-    struct sigaction sa;
-    sa.sa_handler = SIG_IGN;
-
     char* cbuf = buf;
+    int flags = 0;
+
+    if (conn->left_opts->ignore_sigpipe)
+        flags = flags | MSG_NOSIGNAL;
+    if (conn->left_opts->timeout.tv_sec == 0 && conn->left_opts->timeout.tv_usec == 0)
+        flags = flags | MSG_DONTWAIT;
+    
     while (len){
-        if (conn->left_opts->ignore_sigpipe) {
-            sigaction(SIGPIPE, &sa, NULL);
-        }
-        int sent = recv(conn->sock, cbuf, len, 0);
+        int sent = recv(conn->sock, cbuf, len, flags);
         if (sent == 0 || sent == -1) MONGO_THROW(MONGO_EXCEPT_NETWORK);
         cbuf += sent;
         len -= sent;
@@ -68,21 +77,19 @@ static void looping_read(mongo_connection * conn, void* buf, int len){
 }
 
 /* Always calls free(mm) */
-void mongo_message_send(mongo_connection * conn, mongo_message* mm){
+int mongo_message_send(mongo_connection * conn, mongo_message* mm){
     mongo_header head; /* little endian */
     bson_little_endian32(&head.len, &mm->head.len);
     bson_little_endian32(&head.id, &mm->head.id);
     bson_little_endian32(&head.responseTo, &mm->head.responseTo);
     bson_little_endian32(&head.op, &mm->head.op);
-    
-    MONGO_TRY{
-        looping_write(conn, &head, sizeof(head));
-        looping_write(conn, &mm->data, mm->head.len - sizeof(head));
-    }MONGO_CATCH{
-        free(mm);
-        MONGO_RETHROW();
-    }
+
+    int ret = looping_write(conn, &head, sizeof(head));
+    if (ret == 0)
+        ret = looping_write(conn, &mm->data, mm->head.len - sizeof(head));
     free(mm);
+
+    return ret;
 }
 
 char * mongo_data_append( char * start , const void * data , int len ){
@@ -247,7 +254,7 @@ void mongo_insert_batch( mongo_connection * conn , const char * ns , bson ** bso
     mongo_message_send(conn, mm);
 }
 
-void mongo_insert( mongo_connection * conn , const char * ns , bson * bson ){
+int mongo_insert( mongo_connection * conn , const char * ns , bson * bson ){
     char * data;
     mongo_message * mm = mongo_message_create( 16 /* header */
                                              + 4 /* ZERO */
@@ -260,7 +267,7 @@ void mongo_insert( mongo_connection * conn , const char * ns , bson * bson ){
     data = mongo_data_append(data, ns, strlen(ns) + 1);
     data = mongo_data_append(data, bson->data, bson_size(bson));
 
-    mongo_message_send(conn, mm);
+    return mongo_message_send(conn, mm);
 }
 
 void mongo_update(mongo_connection* conn, const char* ns, const bson* cond, const bson* op, int flags){
