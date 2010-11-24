@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#define TEST_SERVER "127.0.0.1"
 #define ASSERT(x) \
     do{ \
         if(!(x)){ \

@@ -633,10 +633,10 @@ void bson_fatal_msg( int ok , const char* msg){
 
     if (err_handler){
         err_handler(msg);
+    } else {
+        fprintf( stderr , "error: %s\n" , msg );
+        exit(-5);
     }
-
-    fprintf( stderr , "error: %s\n" , msg );
-    exit(-5);
 }
 
 extern const char bson_numstrs[1000][4];

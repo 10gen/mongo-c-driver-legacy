@@ -18,6 +18,9 @@
 #ifndef _MONGO_H_
 #define _MONGO_H_
 
+#include <sys/time.h>
+#include <signal.h>
+
 #include "mongo_except.h"
 #include "bson.h"
 
@@ -38,6 +41,8 @@ MONGO_EXTERN_C_START
 typedef struct mongo_connection_options {
     char host[255];
     int port;
+    int ignore_sigpipe;
+    struct timeval timeout;
 } mongo_connection_options;
 
 typedef struct {

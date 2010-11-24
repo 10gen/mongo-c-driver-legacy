@@ -37,8 +37,13 @@ static const int one = 1;
    ------------------------------ */
 
 static void looping_write(mongo_connection * conn, const void* buf, int len){
+    struct sigaction sa;
+    sa.sa_handler = SIG_IGN;
     const char* cbuf = buf;
     while (len){
+        if (conn->left_opts->ignore_sigpipe) {
+            sigaction(SIGPIPE, &sa, NULL);
+        }
         int sent = send(conn->sock, cbuf, len, 0);
         if (sent == -1) MONGO_THROW(MONGO_EXCEPT_NETWORK);
         cbuf += sent;
@@ -47,8 +52,14 @@ static void looping_write(mongo_connection * conn, const void* buf, int len){
 }
 
 static void looping_read(mongo_connection * conn, void* buf, int len){
+    struct sigaction sa;
+    sa.sa_handler = SIG_IGN;
+
     char* cbuf = buf;
     while (len){
+        if (conn->left_opts->ignore_sigpipe) {
+            sigaction(SIGPIPE, &sa, NULL);
+        }
         int sent = recv(conn->sock, cbuf, len, 0);
         if (sent == 0 || sent == -1) MONGO_THROW(MONGO_EXCEPT_NETWORK);
         cbuf += sent;
@@ -131,7 +142,14 @@ static int mongo_connect_helper( mongo_connection * conn ){
     /* nagle */
     setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one) );
 
+    struct timeval *tv = &(conn->left_opts->timeout);
+    if (tv->tv_sec != 0 || tv->tv_usec != 0) {
+        setsockopt(conn->sock, SOL_SOCKET, SO_RCVTIMEO, (char*)tv, sizeof(*tv));
+        setsockopt(conn->sock, SOL_SOCKET, SO_SNDTIMEO, (char*)tv, sizeof(*tv));
+    }
+
     /* TODO signals */
+    /* signal need set on every send() and recv(). why? */
 
     conn->connected = 1;
     return 0;
