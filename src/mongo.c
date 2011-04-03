@@ -777,6 +777,25 @@ bson_bool_t mongo_cmd_ismaster(mongo_connection * conn, bson * realout){
     return ismaster;
 }
 
+bson_bool_t mongodb_cmd_ping(mongo_connection * conn, const char * db)
+{
+    bson out = {NULL, 0};
+    bson_bool_t res;
+    bson_iterator it;
+
+    res = mongo_simple_int_command(conn, db, "ping", 1, &out);
+    if (res) {
+        if (bson_find(&it, &out, "ok") == bson_eoo) {
+            res = 0;
+        } else {
+            res = bson_iterator_bool(&it);
+        }
+    }
+
+    bson_destroy(&out);
+    return res;
+}
+
 static void digest2hex(mongo_md5_byte_t digest[16], char hex_digest[33]){
     static const char hex[16] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
     int i;
