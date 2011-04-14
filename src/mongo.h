@@ -30,17 +30,17 @@ typedef int socklen_t;
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #define mongo_close_socket(sock) ( close(sock) )
 #endif
 
-MONGO_EXTERN_C_START
+#if defined(_XOPEN_SOURCE) || defined(_POSIX_SOURCE) || _POSIX_C_SOURCE >= 1
+#define _MONGO_USE_GETADDRINFO
+#endif
 
-typedef struct mongo_connection_options {
-    char host[255];
-    int port;
-} mongo_connection_options;
+MONGO_EXTERN_C_START
 
 typedef struct mongo_host_port {
     char host[255];
@@ -49,11 +49,15 @@ typedef struct mongo_host_port {
 } mongo_host_port;
 
 typedef struct {
-    mongo_connection_options* left_opts; /* always current server */
-    mongo_connection_options* right_opts; /* unused with single server */
-    mongo_host_port* seeds;
-    struct sockaddr_in sa;
-    socklen_t addressSize;
+    mongo_host_port* seeds; /*< The list of seed nodes provided by the user. */
+    mongo_host_port* hosts; /*< The list of host and ports reported by the replica set */
+    char* name;             /*< The name of the replica set. */
+    bson_bool_t primary_connected; /*< Whether we've managed to connect to a primary node. */
+} mongo_replset;
+
+typedef struct {
+    mongo_host_port* primary;
+    mongo_replset* replset;
     int sock;
     bson_bool_t connected;
     mongo_exception_context exception;
@@ -104,31 +108,89 @@ enum mongo_operations {
 };
 
 
-/* ----------------------------
-   CONNECTION STUFF
-   ------------------------------ */
-
+/*
+ * CONNECTIONS
+ */
 typedef enum {
     mongo_conn_success = 0,
     mongo_conn_bad_arg,
     mongo_conn_no_socket,
     mongo_conn_fail,
-    mongo_conn_not_master /* leaves conn connected to slave */
+    mongo_conn_not_master, /* leaves conn connected to slave */
+    mongo_conn_bad_set_name, /* The provided replica set name doesn't match the existing replica set */
+    mongo_conn_cannot_find_primary
 } mongo_conn_return;
 
-/**
- * @param options can be null
+/*
+ * Connect to a single MongoDB server.
+ *
+ * @param conn a mongo_connection object.
+ * @param host a numerical network address or a network hostname.
+ * @param port the port to connect to.
+ *
+ * @return mongo_conn_return
  */
-mongo_conn_return mongo_connect( mongo_connection * conn , mongo_connection_options * options );
-mongo_conn_return mongo_connect_pair( mongo_connection * conn , mongo_connection_options * left, mongo_connection_options * right );
-mongo_conn_return mongo_reconnect( mongo_connection * conn ); /* you will need to reauthenticate after calling */
+mongo_conn_return mongo_connect( mongo_connection * conn , const char* host, int port );
 
-void mongo_replset_init_conn(mongo_connection* conn);
-int mongo_replset_add_seed(mongo_connection* conn, const char* host, int port);
-mongo_conn_return mongo_replset_connect(mongo_connection* conn);
+/* 
+ * Initialize a connection object for connecting with a replica set.
+ *
+ * @param conn a mongo_connection object.
+ * @param name the name of the replica set to connect to.
+ * */
+void mongo_replset_init_conn( mongo_connection* conn, const char* name );
 
-bson_bool_t mongo_disconnect( mongo_connection * conn ); /* use this if you want to be able to reconnect */
-bson_bool_t mongo_destroy( mongo_connection * conn ); /* you must call this even if connection failed */
+/*
+ * Add a seed node to the connection object.
+ *
+ * You must specify at least one seed node before connecting to a replica set.
+ *
+ * @param conn a mongo_connection object.
+ * @param host a numerical network address or a network hostname.
+ * @param port the port to connect to.
+ */
+int mongo_replset_add_seed( mongo_connection* conn, const char* host, int port );
+
+/*
+ * Connect to a replica set.
+ *
+ * Before passing a connection object to this method, you must already have called
+ * mongo_replset_init_conn and mongo_replset_add_seed.
+ *
+ * @param conn a mongo_connection object.
+ *
+ * @return mongo_conn_return
+ */
+mongo_conn_return mongo_replset_connect( mongo_connection* conn );
+
+/*
+ * Try reconnecting to the server using the existing connection settings.
+ *
+ * This method will disconnect the current socket. If you've authentication,
+ * you'll need to re-authenticate after calling this function.
+ *
+ * @param conn
+ *
+ * @return mongo_conn_return
+ */
+mongo_conn_return mongo_reconnect( mongo_connection * conn );
+
+/*
+ * Close the current connection to the server.
+ */
+bson_bool_t mongo_disconnect( mongo_connection * conn );
+
+/*
+ * Close any existing connection to the server and free all allocated
+ * memory associated with the conn object.
+ *
+ * You must always call this method when finished with the connection object.
+ *
+ * @param conn
+ *
+ * @return bson_bool_t
+ */
+bson_bool_t mongo_destroy( mongo_connection * conn );
 
 /* ----------------------------
    CORE METHODS - insert update remove query getmore

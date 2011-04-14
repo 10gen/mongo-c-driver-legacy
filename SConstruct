@@ -10,6 +10,14 @@ AddOption('--test-server',
           action='store',
           help='IP address of server to use for testing')
 
+AddOption('--seed-start-port',
+          dest='seed_start_port',
+          default=30000,
+          type='int',
+          nargs=1,
+          action='store',
+          help='IP address of server to use for testing')
+
 AddOption('--c99',
           dest='use_c99',
           default=False,
@@ -28,7 +36,7 @@ import sys
 env = Environment( ENV=os.environ )
 
 if os.sys.platform in ["darwin", "linux2"]:
-    env.Append( CPPFLAGS=" -pedantic -Wall -ggdb " )
+    env.Append( CPPFLAGS=" -pedantic -Wall -ggdb -DMONGO_HAVE_STDINT" )
     env.Append( CPPPATH=["/opt/local/include/"] )
     env.Append( LIBPATH=["/opt/local/lib/"] )
 
@@ -43,7 +51,7 @@ if os.sys.platform in ["darwin", "linux2"]:
         # -O3 benchmarks *significantly* faster than -O2 when disabling networking
 elif 'win32' == os.sys.platform:
     env.Append( LIBS='ws2_32' )
-        
+
 
 #we shouldn't need these options in c99 mode
 if not GetOption('use_c99'):
@@ -88,7 +96,8 @@ dynb = env.SharedLibrary( "bson" , bLibFiles )
 env.Default( env.Alias( "sharedlib" , [ dynm[0] , dynb[0] ] ) )
 
 benchmarkEnv = env.Clone()
-benchmarkEnv.Append( CPPDEFINES=[('TEST_SERVER', r'\"%s\"'%GetOption('test_server'))] )
+benchmarkEnv.Append( CPPDEFINES=[('TEST_SERVER', r'\"%s\"'%GetOption('test_server')),
+('SEED_START_PORT', r'%d'%GetOption('seed_start_port'))] )
 benchmarkEnv.Append( LIBS=[m, b] )
 benchmarkEnv.Prepend( LIBPATH=["."] )
 benchmarkEnv.Program( "benchmark" ,  [ "test/benchmark.c"] )
@@ -96,7 +105,8 @@ benchmarkEnv.Program( "benchmark" ,  [ "test/benchmark.c"] )
 testEnv = benchmarkEnv.Clone()
 testCoreFiles = [ ]
 
-tests = Split('sizes resize endian_swap all_types simple update errors count_delete auth pair gridfs replica_set')
+tests = Split("sizes resize endian_swap all_types simple update errors "
+"count_delete auth gridfs replica_set examples")
 
 if have_libjson:
     tests.append('json')

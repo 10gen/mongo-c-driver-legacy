@@ -8,7 +8,6 @@
 
 int main(){
     mongo_connection conn[1];
-    mongo_connection_options opts;
     bson_buffer bb;
     bson b;
     mongo_cursor * cursor;
@@ -21,11 +20,7 @@ int main(){
 
     INIT_SOCKETS_FOR_WINDOWS;
 
-    strncpy(opts.host, TEST_SERVER, 255);
-    opts.host[254] = '\0';
-    opts.port = 27017;
-
-    if (mongo_connect( conn , &opts )){
+    if (mongo_connect( conn , TEST_SERVER, 27017 )){
         printf("failed to connect\n");
         exit(1);
     }
@@ -104,6 +99,12 @@ int main(){
 
     mongo_cursor_destroy(cursor);
     mongo_cmd_drop_db(conn, "test");
+    mongo_disconnect( conn );
+
+    mongo_reconnect( conn );
+
+    ASSERT( mongo_simple_int_command( conn, "admin", "ping", 1, NULL ) );
+
     mongo_destroy( conn );
     return 0;
 }
