@@ -42,8 +42,8 @@ enum mongo_error_t {
 enum mongo_cursor_error_t {
     MONGO_CURSOR_EXHAUSTED = 1, /**< The cursor has no more results. */
     MONGO_CURSOR_INVALID = 2,   /**< The cursor has timed out or is not recognized. */
-    MONGO_CURSOR_PENDING = 3,   /**< Tailable cursor still alive but no data. */
-}
+    MONGO_CURSOR_PENDING = 3   /**< Tailable cursor still alive but no data. */
+};
 
 enum mongo_cursor_bitfield_t {
     MONGO_TAILABLE = (1<<1),          /**< Create a tailable cursor. */
