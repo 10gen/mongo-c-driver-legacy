@@ -31,6 +31,13 @@
 #include "net.h"
 #endif
 
+mongo_message *mongo_message_create( int len , int id , int responseTo , int op );
+int mongo_message_send( mongo *conn, mongo_message *mm );
+int mongo_read_response( mongo *conn, mongo_reply **reply );
+char *mongo_data_append( char *start , const void *data , int len );
+char *mongo_data_append32( char *start , const void *data );
+char *mongo_data_append64( char *start , const void *data );
+
 static const int ZERO = 0;
 static const int ONE = 1;
 mongo_message *mongo_message_create( int len , int id , int responseTo , int op ) {

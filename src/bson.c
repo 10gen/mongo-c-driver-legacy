@@ -567,6 +567,11 @@ void bson_iterator_subiterator( const bson_iterator *i, bson_iterator *sub ) {
    BUILDING
    ------------------------------ */
 
+void bson_append_byte( bson *b, char c );
+void bson_append( bson *b, const void *data, int len );
+void bson_append32( bson *b, const void *data );
+void bson_append64( bson *b, const void *data );
+
 static void _bson_init_size( bson *b, int size ) {
     if( size == 0 )
         b->data = NULL;
@@ -684,6 +689,9 @@ static int bson_append_estart( bson *b, int type, const char *name, const int da
 /* ----------------------------
    BUILDING TYPES
    ------------------------------ */
+
+int bson_append_string_base( bson *b, const char *name,
+   const char *value, int len, bson_type type );
 
 int bson_append_int( bson *b, const char *name, const int i ) {
     if ( bson_append_estart( b, BSON_INT, name, 4 ) == BSON_ERROR )
