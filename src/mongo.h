@@ -99,7 +99,7 @@ enum mongo_operations {
 
 #pragma pack(1)
 typedef struct {
-    size_t len;
+    int len;
     int id;
     int responseTo;
     int op;
