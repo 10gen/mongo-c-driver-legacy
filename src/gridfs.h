@@ -46,9 +46,9 @@ typedef struct {
     char *remote_name;  /**> The name of the gridfile as a string */
     char *content_type; /**> The gridfile's content type */
     gridfs_offset length; /**> The length of this gridfile */
-    int chunk_num;      /**> The number of the current chunk being written to */
+    size_t chunk_num;      /**> The number of the current chunk being written to */
     char *pending_data; /**> A buffer storing data still to be written to chunks */
-    int pending_len;    /**> Length of pending_data buffer */
+    size_t pending_len;    /**> Length of pending_data buffer */
 } gridfile;
 
 /**
@@ -287,7 +287,7 @@ bson gridfile_get_chunk( gridfile *gfile, int n );
  *
  *  @return - mongo_cursor of the chunks (must be destroyed after use)
  */
-mongo_cursor *gridfile_get_chunks( gridfile *gfile, int start, int size );
+mongo_cursor *gridfile_get_chunks( gridfile *gfile, size_t start, size_t size );
 
 /**
  *  Writes the GridFile to a stream
