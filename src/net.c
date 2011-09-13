@@ -19,10 +19,10 @@
 #include "net.h"
 #include <string.h>
 
-int mongo_write_socket( mongo *conn, const void *buf, int len ) {
+int mongo_write_socket( mongo *conn, const void *buf, size_t len ) {
     const char *cbuf = buf;
     while ( len ) {
-        int sent = send( conn->sock, cbuf, len, 0 );
+        ssize_t sent = send( conn->sock, cbuf, len, 0 );
         if ( sent == -1 ) {
             conn->err = MONGO_IO_ERROR;
             return MONGO_ERROR;
@@ -37,7 +37,7 @@ int mongo_write_socket( mongo *conn, const void *buf, int len ) {
 int mongo_read_socket( mongo *conn, void *buf, int len ) {
     char *cbuf = buf;
     while ( len ) {
-        int sent = recv( conn->sock, cbuf, len, 0 );
+        ssize_t sent = recv( conn->sock, cbuf, len, 0 );
         if ( sent == 0 || sent == -1 ) {
             conn->err = MONGO_IO_ERROR;
             return MONGO_ERROR;

@@ -21,13 +21,13 @@
 #include <string.h>
 #include <assert.h>
 
-static bson *chunk_new( bson_oid_t id, int chunkNumber,
-                        const char *data, int len ) {
+static bson *chunk_new( bson_oid_t id, size_t chunkNumber,
+                        const char *data, size_t len ) {
     bson *b = bson_malloc( sizeof( bson ) );
 
     bson_init( b );
     bson_append_oid( b, "files_id", &id );
-    bson_append_int( b, "n", chunkNumber );
+    bson_append_int( b, "n", (int)chunkNumber );
     bson_append_binary( b, "data", BSON_BIN_BINARY, data, len );
     bson_finish( b );
     return  b;
@@ -203,9 +203,9 @@ void gridfile_writer_init( gridfile *gfile, gridfs *gfs,
 void gridfile_write_buffer( gridfile *gfile, const char *data,
     gridfs_offset length ) {
 
-    int bytes_left = 0;
-    int data_partial_len = 0;
-    int chunks_to_write = 0;
+    size_t bytes_left = 0;
+    size_t data_partial_len = 0;
+    size_t chunks_to_write = 0;
     char *buffer;
     bson *oChunk;
     gridfs_offset to_write = length + gfile->pending_len;
@@ -560,7 +560,7 @@ bson gridfile_get_chunk( gridfile *gfile, int n ) {
     return out;
 }
 
-mongo_cursor *gridfile_get_chunks( gridfile *gfile, int start, int size ) {
+mongo_cursor *gridfile_get_chunks( gridfile *gfile, size_t start, size_t size ) {
     bson_iterator it;
     bson_oid_t id;
     bson gte;
@@ -575,10 +575,10 @@ mongo_cursor *gridfile_get_chunks( gridfile *gfile, int start, int size ) {
     bson_init( &query );
     bson_append_oid( &query, "files_id", &id );
     if ( size == 1 ) {
-        bson_append_int( &query, "n", start );
+        bson_append_int( &query, "n", (int)start );
     } else {
         bson_init( &gte );
-        bson_append_int( &gte, "$gte", start );
+        bson_append_int( &gte, "$gte", (int)start );
         bson_finish( &gte );
         bson_append_bson( &query, "n", &gte );
         bson_destroy( &gte );
@@ -595,7 +595,7 @@ mongo_cursor *gridfile_get_chunks( gridfile *gfile, int start, int size ) {
     bson_finish( &command );
 
     cursor = mongo_find( gfile->gfs->client, gfile->gfs->chunks_ns,
-                         &command, NULL, size, 0, 0 );
+                         &command, NULL, (int)size, 0, 0 );
 
     bson_destroy( &command );
     bson_destroy( &query );
@@ -628,9 +628,9 @@ gridfs_offset gridfile_read( gridfile *gfile, gridfs_offset size, char *buf ) {
     mongo_cursor *chunks;
     bson chunk;
 
-    int first_chunk;
-    int last_chunk;
-    int total_chunks;
+    size_t first_chunk;
+    size_t last_chunk;
+    size_t total_chunks;
     gridfs_offset chunksize;
     gridfs_offset contentlength;
     gridfs_offset bytes_left;

@@ -102,7 +102,7 @@ static int isLegalUTF8( const unsigned char *source, int length ) {
 }
 
 static int bson_validate_string( bson *b, const unsigned char *string,
-                                 const int length, const char check_utf8, const char check_dot,
+                                 const size_t length, const char check_utf8, const char check_dot,
                                  const char check_dollar ) {
 
     int position = 0;
@@ -136,13 +136,13 @@ static int bson_validate_string( bson *b, const unsigned char *string,
 
 
 int bson_check_string( bson *b, const char *string,
-                       const int length ) {
+                       const size_t length ) {
 
     return bson_validate_string( b, ( const unsigned char * )string, length, 1, 0, 0 );
 }
 
 int bson_check_field_name( bson *b, const char *string,
-                           const int length ) {
+                           const size_t length ) {
 
     return bson_validate_string( b, ( const unsigned char * )string, length, 1, 1, 1 );
 }

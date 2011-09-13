@@ -172,7 +172,7 @@ void bson_oid_gen( bson_oid_t *oid ) {
     static int incr = 0;
     static int fuzz = 0;
     int i;
-    int t = time( NULL );
+    int t = (int)time( NULL );
 
     if( oid_inc_func )
         i = oid_inc_func();
@@ -364,7 +364,7 @@ bson_type bson_iterator_next( bson_iterator *i ) {
         const char *p = s;
         p += strlen( p )+1;
         p += strlen( p )+1;
-        ds = p-s;
+        ds = (int)p - (int)s;
         break;
     }
 
@@ -428,7 +428,7 @@ int bson_iterator_int( const bson_iterator *i ) {
     case BSON_INT:
         return bson_iterator_int_raw( i );
     case BSON_LONG:
-        return bson_iterator_long_raw( i );
+        return (int)bson_iterator_long_raw( i );
     case BSON_DOUBLE:
         return bson_iterator_double_raw( i );
     default:
@@ -567,6 +567,11 @@ void bson_iterator_subiterator( const bson_iterator *i, bson_iterator *sub ) {
    BUILDING
    ------------------------------ */
 
+void bson_append_byte( bson *b, char c );
+void bson_append( bson *b, const void *data, size_t len );
+void bson_append32( bson *b, const void *data );
+void bson_append64( bson *b, const void *data );
+
 static void _bson_init_size( bson *b, int size ) {
     if( size == 0 )
         b->data = NULL;
@@ -590,7 +595,7 @@ void bson_append_byte( bson *b, char c ) {
     b->cur++;
 }
 
-void bson_append( bson *b, const void *data, int len ) {
+void bson_append( bson *b, const void *data, size_t len ) {
     memcpy( b->cur , data , len );
     b->cur += len;
 }
@@ -605,8 +610,8 @@ void bson_append64( bson *b, const void *data ) {
     b->cur += 8;
 }
 
-int bson_ensure_space( bson *b, const int bytesNeeded ) {
-    int pos = b->cur - b->data;
+int bson_ensure_space( bson *b, const size_t bytesNeeded ) {
+    long pos = b->cur - b->data;
     char *orig = b->data;
     int new_size;
 
@@ -635,7 +640,7 @@ int bson_ensure_space( bson *b, const int bytesNeeded ) {
 }
 
 int bson_finish( bson *b ) {
-    int i;
+    long i;
 
     if( b->err & BSON_NOT_UTF8 )
         return BSON_ERROR;
@@ -659,8 +664,8 @@ void bson_destroy( bson *b ) {
     b->finished = 1;
 }
 
-static int bson_append_estart( bson *b, int type, const char *name, const int dataSize ) {
-    const int len = strlen( name ) + 1;
+static int bson_append_estart( bson *b, int type, const char *name, const size_t dataSize ) {
+    const size_t len = strlen( name ) + 1;
 
     if ( b->finished ) {
         b->err |= BSON_ALREADY_FINISHED;
@@ -684,6 +689,9 @@ static int bson_append_estart( bson *b, int type, const char *name, const int da
 /* ----------------------------
    BUILDING TYPES
    ------------------------------ */
+
+int bson_append_string_base( bson *b, const char *name,
+                            const char *value, size_t len, bson_type type );
 
 int bson_append_int( bson *b, const char *name, const int i ) {
     if ( bson_append_estart( b, BSON_INT, name, 4 ) == BSON_ERROR )
@@ -726,9 +734,9 @@ int bson_append_undefined( bson *b, const char *name ) {
 }
 
 int bson_append_string_base( bson *b, const char *name,
-                             const char *value, int len, bson_type type ) {
+                             const char *value, size_t len, bson_type type ) {
 
-    int sl = len + 1;
+    size_t sl = len + 1;
     if ( bson_check_string( b, ( const char * )value, sl - 1 ) == BSON_ERROR )
         return BSON_ERROR;
     if ( bson_append_estart( b, type, name, 4 + sl ) == BSON_ERROR ) {
@@ -765,10 +773,10 @@ int bson_append_code_n( bson *b, const char *name, const char *value, int len ) 
 }
 
 int bson_append_code_w_scope_n( bson *b, const char *name,
-                                const char *code, int len, const bson *scope ) {
+                                const char *code, size_t len, const bson *scope ) {
 
-    int sl = len + 1;
-    int size = 4 + 4 + sl + bson_size( scope );
+    size_t sl = len + 1;
+    size_t size = 4 + 4 + sl + bson_size( scope );
     if ( bson_append_estart( b, BSON_CODEWSCOPE, name, size ) == BSON_ERROR )
         return BSON_ERROR;
     bson_append32( b, &size );
@@ -782,9 +790,9 @@ int bson_append_code_w_scope( bson *b, const char *name, const char *code, const
     return bson_append_code_w_scope_n( b, name, code, strlen ( code ), scope );
 }
 
-int bson_append_binary( bson *b, const char *name, char type, const char *str, int len ) {
+int bson_append_binary( bson *b, const char *name, char type, const char *str, size_t len ) {
     if ( type == BSON_BIN_BINARY_OLD ) {
-        int subtwolen = len + 4;
+        size_t subtwolen = len + 4;
         if ( bson_append_estart( b, BSON_BINDATA, name, 4+1+4+len ) == BSON_ERROR )
             return BSON_ERROR;
         bson_append32( b, &subtwolen );
@@ -815,8 +823,8 @@ int bson_append_new_oid( bson *b, const char *name ) {
 }
 
 int bson_append_regex( bson *b, const char *name, const char *pattern, const char *opts ) {
-    const int plen = strlen( pattern )+1;
-    const int olen = strlen( opts )+1;
+    const size_t plen = strlen( pattern )+1;
+    const size_t olen = strlen( opts )+1;
     if ( bson_append_estart( b, BSON_REGEX, name, plen + olen ) == BSON_ERROR )
         return BSON_ERROR;
     if ( bson_check_string( b, pattern, plen - 1 ) == BSON_ERROR )
@@ -835,7 +843,7 @@ int bson_append_bson( bson *b, const char *name, const bson *bson ) {
 
 int bson_append_element( bson *b, const char *name_or_null, const bson_iterator *elem ) {
     bson_iterator next = *elem;
-    int size;
+    size_t size;
 
     bson_iterator_next( &next );
     size = next.cur - elem->cur;
@@ -845,7 +853,7 @@ int bson_append_element( bson *b, const char *name_or_null, const bson_iterator 
             return BSON_ERROR;
         bson_append( b, elem->cur, size );
     } else {
-        int data_size = size - 2 - strlen( bson_iterator_key( elem ) );
+        size_t data_size = size - 2 - strlen( bson_iterator_key( elem ) );
         bson_append_estart( b, elem->cur[0], name_or_null, data_size );
         bson_append( b, bson_iterator_value( elem ), data_size );
     }
@@ -888,7 +896,7 @@ int bson_append_start_array( bson *b, const char *name ) {
 
 int bson_append_finish_object( bson *b ) {
     char *start;
-    int i;
+    size_t i;
     if ( bson_ensure_space( b, 1 ) == BSON_ERROR ) return BSON_ERROR;
     bson_append_byte( b , 0 );
 
@@ -914,14 +922,14 @@ bson_err_handler set_bson_err_handler( bson_err_handler func ) {
     return old;
 }
 
-void *bson_malloc( int size ) {
+void *bson_malloc( size_t size ) {
     void *p;
     p = bson_malloc_func( size );
     bson_fatal_msg( !!p, "malloc() failed" );
     return p;
 }
 
-void *bson_realloc( void *ptr, int size ) {
+void *bson_realloc( void *ptr, size_t size ) {
     void *p;
     p = bson_realloc_func( ptr, size );
     bson_fatal_msg( !!p, "realloc() failed" );
