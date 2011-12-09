@@ -60,7 +60,10 @@ bson *bson_empty( bson *obj ) {
 void bson_copy_basic( bson *out, const bson *in ) {
     if ( !out ) return;
     bson_init_size( out, bson_size( in ) );
-    memcpy( out->data, in->data, bson_size( in ) );
+    if ( in->data ) {
+       memcpy( out->data, in->data, bson_size( in ) );
+    }
+    return;
 }
 
 void bson_copy( bson *out, const bson *in ) {
@@ -321,7 +324,14 @@ bson_type bson_iterator_next( bson_iterator *i ) {
 
     if ( i->first ) {
         i->first = 0;
-        return ( bson_type )( *i->cur );
+        if (*i->cur) {
+            return ( bson_type )( *i->cur );
+        } else {
+            char msg[] = "unknown type: 000000000000";
+            bson_numstr( msg+14, ( unsigned )( i->cur[0] ) );
+            bson_fatal_msg( 0, msg );
+            return 0;
+        }
     }
 
     switch ( bson_iterator_type( i ) ) {
@@ -962,7 +972,7 @@ void bson_fatal_msg( int ok , const char *msg ) {
     }
 
     bson_errprintf( "error: %s\n" , msg );
-    exit( -5 );
+    //exit( -5 );
 }
 
 

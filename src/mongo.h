@@ -22,6 +22,7 @@
 #define _MONGO_H_
 
 #include "bson.h"
+#include "signal.h"
 
 MONGO_EXTERN_C_START
 

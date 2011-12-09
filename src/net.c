@@ -27,6 +27,10 @@
 #define false 0
 #define true 1
 
+void sig_pipe_handler(int signum) {
+    return;
+}
+
 int wait_for_socket( mongo *conn, int type ) {
     struct timeval tv;
     int seconds, microseconds;
@@ -70,9 +74,16 @@ int wait_for_socket( mongo *conn, int type ) {
 }
 
 int mongo_write_socket( mongo *conn, const void *buf, int len ) {
+    signal(SIGINT, sig_pipe_handler);
+    signal(SIGINT, SIG_IGN);
+
     struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = conn->op_timeout_ms * 1000;
+    int seconds, microseconds;
+    seconds = conn->conn_timeout_ms / 1000;
+    microseconds = ( conn->op_timeout_ms % 1000 ) * 1000;
+    tv.tv_sec = seconds;
+    tv.tv_usec = microseconds;
+
     const char *cbuf = buf;
 
     while ( len ) {
@@ -93,8 +104,12 @@ int mongo_write_socket( mongo *conn, const void *buf, int len ) {
 
 int mongo_read_socket( mongo *conn, void *buf, int len ) {
     struct timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = conn->op_timeout_ms * 1000;
+    int seconds, microseconds;
+    seconds = conn->conn_timeout_ms / 1000;
+    microseconds = ( conn->op_timeout_ms % 1000 ) * 1000;
+    tv.tv_sec = seconds;
+    tv.tv_usec = microseconds;
+
     char *cbuf = buf;
     
     while ( len ) {
@@ -174,7 +189,6 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
 
 done:
     fcntl( conn->sock, F_SETFL, flags);
-
     setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, ( char * ) &flag, sizeof( flag ) );
     conn->connected = 1;
     return MONGO_OK;
