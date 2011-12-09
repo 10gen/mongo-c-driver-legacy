@@ -18,10 +18,68 @@
 /* Implementation for generic version of net.h */
 #include "net.h"
 #include <string.h>
+#include <errno.h>
+
+#define READ 1
+#define WRITE 2
+#define CONNECT 3
+
+#define false 0
+#define true 1
+
+int wait_for_socket( mongo *conn, int type ) {
+    struct timeval tv;
+    int seconds, microseconds;
+    if ( type == CONNECT ) {
+        seconds = conn->conn_timeout_ms / 1000;
+        microseconds = ( conn->conn_timeout_ms % 1000 ) * 1000;
+    } else {
+        seconds = conn->op_timeout_ms / 1000;
+        microseconds = ( conn->op_timeout_ms % 1000 ) * 1000;
+    }
+    tv.tv_sec = seconds;
+    tv.tv_usec = microseconds;
+
+    int n, len;
+    fd_set wset, rset;
+    FD_ZERO( &wset );
+    FD_ZERO( &rset );
+    FD_SET( conn->sock, &rset );
+    wset = rset;
+
+    int error = 0;
+
+    if ( select( conn->sock + 1, &rset, &wset, NULL, &tv ) == 0 ) {
+        return false;
+    }
+
+    if ( type == CONNECT ) {
+        if ( FD_ISSET( conn->sock, &wset ) || FD_ISSET( conn->sock, &rset ) ) {
+            len = sizeof( error );
+            if ( getsockopt( conn->sock, SOL_SOCKET, SO_ERROR, &error, &len ) < 0 ) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+    if ( error ) {
+        return false;
+    }
+    return true;
+}
 
 int mongo_write_socket( mongo *conn, const void *buf, int len ) {
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = conn->op_timeout_ms * 1000;
     const char *cbuf = buf;
+
     while ( len ) {
+        if ( !wait_for_socket( conn, WRITE ) ) {
+            conn->err = MONGO_READ_TIMEOUT;
+            return MONGO_ERROR;
+        }
         int sent = send( conn->sock, cbuf, len, 0 );
         if ( sent == -1 ) {
             conn->err = MONGO_IO_ERROR;
@@ -30,13 +88,20 @@ int mongo_write_socket( mongo *conn, const void *buf, int len ) {
         cbuf += sent;
         len -= sent;
     }
-
     return MONGO_OK;
 }
 
 int mongo_read_socket( mongo *conn, void *buf, int len ) {
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = conn->op_timeout_ms * 1000;
     char *cbuf = buf;
+    
     while ( len ) {
+        if ( !wait_for_socket( conn, READ ) ) {
+            conn->err = MONGO_READ_TIMEOUT;
+            return MONGO_ERROR;
+        }   
         int sent = recv( conn->sock, cbuf, len, 0 );
         if ( sent == 0 || sent == -1 ) {
             conn->err = MONGO_IO_ERROR;
@@ -45,12 +110,6 @@ int mongo_read_socket( mongo *conn, void *buf, int len ) {
         cbuf += sent;
         len -= sent;
     }
-
-    return MONGO_OK;
-}
-
-/* This is a no-op in the generic implementation. */
-int mongo_set_socket_op_timeout( mongo *conn, int millis ) {
     return MONGO_OK;
 }
 
@@ -61,18 +120,37 @@ static int mongo_create_socket( mongo *conn ) {
         conn->err = MONGO_CONN_NO_SOCKET;
         return MONGO_ERROR;
     }
+
     conn->sock = fd;
 
     return MONGO_OK;
 }
 
+int mongo_cleanup_connection( mongo *conn, int error_type ) {
+    mongo_close_socket( conn->sock );
+    conn->connected = 0;
+    conn->sock = 0;
+    conn->err = error_type;
+    return MONGO_ERROR;
+}
+
 int mongo_socket_connect( mongo *conn, const char *host, int port ) {
     struct sockaddr_in sa;
-    socklen_t addressSize;
+    int flags, n, error;
+    socklen_t len, addressSize;
+    fd_set rset, wset;
+    struct timeval tv;
+
+    tv.tv_sec = 0;
+    tv.tv_usec = conn->conn_timeout_ms * 1000;
+
     int flag = 1;
 
     if( mongo_create_socket( conn ) != MONGO_OK )
         return MONGO_ERROR;
+
+    flags = fcntl( conn->sock, F_GETFL, 0 );
+    fcntl( conn->sock, F_SETFL, flags | O_NONBLOCK);
 
     memset( sa.sin_zero , 0 , sizeof( sa.sin_zero ) );
     sa.sin_family = AF_INET;
@@ -80,19 +158,24 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
     sa.sin_addr.s_addr = inet_addr( host );
     addressSize = sizeof( sa );
 
-    if ( connect( conn->sock, ( struct sockaddr * )&sa, addressSize ) == -1 ) {
-        mongo_close_socket( conn->sock );
-        conn->connected = 0;
-        conn->sock = 0;
-        conn->err = MONGO_CONN_FAIL;
-        return MONGO_ERROR;
+    if (( n = connect( conn->sock, ( struct sockaddr *)&sa, addressSize ) ) < 0 ) {
+        if ( errno != EINPROGRESS ) {
+            return mongo_cleanup_connection( conn, MONGO_CONN_FAIL );
+        }
     }
 
+    if ( n == 0) {
+        goto done;
+    }
+
+    if ( !wait_for_socket( conn, CONNECT ) ) {
+        return mongo_cleanup_connection( conn, MONGO_CONN_TIMEOUT );
+    }
+
+done:
+    fcntl( conn->sock, F_SETFL, flags);
+
     setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, ( char * ) &flag, sizeof( flag ) );
-    if( conn->op_timeout_ms > 0 )
-        mongo_set_socket_op_timeout( conn, conn->op_timeout_ms );
-
     conn->connected = 1;
-
     return MONGO_OK;
 }

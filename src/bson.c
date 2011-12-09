@@ -57,25 +57,28 @@ bson *bson_empty( bson *obj ) {
     return obj;
 }
 
-int bson_copy( bson *out, const bson *in ) {
-    if ( !out ) return BSON_ERROR;
-    if ( !in->finished ) return BSON_ERROR;
+void bson_copy_basic( bson *out, const bson *in ) {
+    if ( !out ) return;
     bson_init_size( out, bson_size( in ) );
     memcpy( out->data, in->data, bson_size( in ) );
-    out->finished = 1;
+}
 
-    return BSON_OK;
+void bson_copy( bson *out, const bson *in ) {
+    int i;
+
+    if ( !out ) return;
+    bson_copy_basic( out, in );
+    out->cur = out->data + ( in->cur - in->data );
+    out->dataSize = in->dataSize;
+    out->finished = in->finished;
+    out->stackPos = in->stackPos;
+    out->err = in->err;
+    for( i=0; i<out->stackPos; i++ )
+        out->stack[i] = in->stack[i];
 }
 
 int bson_init_data( bson *b, char *data ) {
     b->data = data;
-    return BSON_OK;
-}
-
-int bson_init_finished_data( bson *b, char *data ) {
-    bson_init_data( b, data );
-    b->stackPos = 0;
-    b->finished = 1;
     return BSON_OK;
 }
 
@@ -220,69 +223,69 @@ void bson_print_raw( const char *data , int depth ) {
         key = bson_iterator_key( &i );
 
         for ( temp=0; temp<=depth; temp++ )
-            bson_printf( "\t" );
+            printf( "\t" );
         bson_printf( "%s : %d \t " , key , t );
         switch ( t ) {
         case BSON_DOUBLE:
-            bson_printf( "%f" , bson_iterator_double( &i ) );
+            printf( "%f" , bson_iterator_double( &i ) );
             break;
         case BSON_STRING:
-            bson_printf( "%s" , bson_iterator_string( &i ) );
+            printf( "%s" , bson_iterator_string( &i ) );
             break;
         case BSON_SYMBOL:
-            bson_printf( "SYMBOL: %s" , bson_iterator_string( &i ) );
+            printf( "SYMBOL: %s" , bson_iterator_string( &i ) );
             break;
         case BSON_OID:
             bson_oid_to_string( bson_iterator_oid( &i ), oidhex );
-            bson_printf( "%s" , oidhex );
+            printf( "%s" , oidhex );
             break;
         case BSON_BOOL:
-            bson_printf( "%s" , bson_iterator_bool( &i ) ? "true" : "false" );
+            printf( "%s" , bson_iterator_bool( &i ) ? "true" : "false" );
             break;
         case BSON_DATE:
-            bson_printf( "%ld" , ( long int )bson_iterator_date( &i ) );
+            printf( "%ld" , ( long int )bson_iterator_date( &i ) );
             break;
         case BSON_BINDATA:
-            bson_printf( "BSON_BINDATA" );
+            printf( "BSON_BINDATA" );
             break;
         case BSON_UNDEFINED:
-            bson_printf( "BSON_UNDEFINED" );
+            printf( "BSON_UNDEFINED" );
             break;
         case BSON_NULL:
-            bson_printf( "BSON_NULL" );
+            printf( "BSON_NULL" );
             break;
         case BSON_REGEX:
-            bson_printf( "BSON_REGEX: %s", bson_iterator_regex( &i ) );
+            printf( "BSON_REGEX: %s", bson_iterator_regex( &i ) );
             break;
         case BSON_CODE:
-            bson_printf( "BSON_CODE: %s", bson_iterator_code( &i ) );
+            printf( "BSON_CODE: %s", bson_iterator_code( &i ) );
             break;
         case BSON_CODEWSCOPE:
-            bson_printf( "BSON_CODE_W_SCOPE: %s", bson_iterator_code( &i ) );
+            printf( "BSON_CODE_W_SCOPE: %s", bson_iterator_code( &i ) );
             bson_init( &scope );
             bson_iterator_code_scope( &i, &scope );
-            bson_printf( "\n\t SCOPE: " );
+            printf( "\n\t SCOPE: " );
             bson_print( &scope );
             break;
         case BSON_INT:
-            bson_printf( "%d" , bson_iterator_int( &i ) );
+            printf( "%d" , bson_iterator_int( &i ) );
             break;
         case BSON_LONG:
-            bson_printf( "%lld" , ( uint64_t )bson_iterator_long( &i ) );
+            printf( "%lld" , ( long long int )bson_iterator_long( &i ) );
             break;
         case BSON_TIMESTAMP:
             ts = bson_iterator_timestamp( &i );
-            bson_printf( "i: %d, t: %d", ts.i, ts.t );
+            printf( "i: %d, t: %d", ts.i, ts.t );
             break;
         case BSON_OBJECT:
         case BSON_ARRAY:
-            bson_printf( "\n" );
+            printf( "\n" );
             bson_print_raw( bson_iterator_value( &i ) , depth + 1 );
             break;
         default:
             bson_errprintf( "can't print type : %d\n" , t );
         }
-        bson_printf( "\n" );
+        printf( "\n" );
     }
 }
 
@@ -512,8 +515,6 @@ void bson_iterator_code_scope( const bson_iterator *i, bson *scope ) {
         int code_len;
         bson_little_endian32( &code_len, bson_iterator_value( i )+4 );
         bson_init_data( scope, ( void * )( bson_iterator_value( i )+8+code_len ) );
-        _bson_reset( scope );
-        scope->finished = 1;
     } else {
         bson_empty( scope );
     }
@@ -725,8 +726,7 @@ int bson_append_undefined( bson *b, const char *name ) {
     return BSON_OK;
 }
 
-int bson_append_string_base( bson *b, const char *name,
-                             const char *value, int len, bson_type type ) {
+int bson_append_string_base( bson *b, const char *name, const char *value, int len, bson_type type ) {
 
     int sl = len + 1;
     if ( bson_check_string( b, ( const char * )value, sl - 1 ) == BSON_ERROR )
