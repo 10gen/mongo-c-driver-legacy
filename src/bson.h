@@ -526,18 +526,6 @@ void bson_init( bson *b );
 int bson_init_data( bson *b , char *data );
 
 /**
- * Initialize a BSON object, and point its data
- * pointer to the provided char*. We assume
- * that the data represents a finished BSON object.
- *
- * @param b the BSON object to initialize.
- * @param data the raw BSON data.
- *
- * @return BSON_OK or BSON_ERROR.
- */
-int bson_init_finished_data( bson *b, char *data );
-
-/**
  * Initialize a BSON object, and set its
  * buffer to the given size.
  *
@@ -588,14 +576,20 @@ void bson_destroy( bson *b );
 bson *bson_empty( bson *obj );
 
 /**
- * Make a complete copy of the a BSON object.
- * The source bson object must be in a finished
- * state; otherwise, the copy will fail.
+ * Copy BSON data only from one object to another.
  *
  * @param out the copy destination BSON object.
  * @param in the copy source BSON object.
  */
-int bson_copy( bson *out, const bson *in ); /* puts data in new buffer. NOOP if out==NULL */
+void bson_copy_basic( bson *out, const bson *in );
+
+/**
+ * Make a complete copy of the a BSON object.
+ *
+ * @param out the copy destination BSON object.
+ * @param in the copy source BSON object.
+ */
+void bson_copy( bson *out, const bson *in ); /* puts data in new buffer. NOOP if out==NULL */
 
 /**
  * Append a previously created bson_oid_t to a bson object.

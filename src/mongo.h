@@ -22,6 +22,7 @@
 #define _MONGO_H_
 
 #include "bson.h"
+#include "signal.h"
 
 MONGO_EXTERN_C_START
 
@@ -37,28 +38,23 @@ MONGO_EXTERN_C_START
 typedef enum mongo_error_t {
     MONGO_CONN_SUCCESS = 0,  /**< Connection success! */
     MONGO_CONN_NO_SOCKET,    /**< Could not create a socket. */
+    MONGO_CONN_TIMEOUT,      /**< connect() exceeded conn_timeout_ms. */
     MONGO_CONN_FAIL,         /**< An error occured while calling connect(). */
     MONGO_CONN_ADDR_FAIL,    /**< An error occured while calling getaddrinfo(). */
     MONGO_CONN_NOT_MASTER,   /**< Warning: connected to a non-master node (read-only). */
     MONGO_CONN_BAD_SET_NAME, /**< Given rs name doesn't match this replica set. */
     MONGO_CONN_NO_PRIMARY,   /**< Can't find primary in replica set. Connection closed. */
-
-    MONGO_IO_ERROR,          /**< An error occurred while reading or writing on the socket. */
+    MONGO_IO_ERROR,          /**< An error occurred while reading or writing on socket. */
+    MONGO_READ_TIMEOUT,      /**< read() time exceeded op_timeout_ms */
+    MONGO_WRITE_TIMEOUT,     /**< write() time exceeded op_timeout_ms */
     MONGO_READ_SIZE_ERROR,   /**< The response is not the expected length. */
     MONGO_COMMAND_FAILED,    /**< The command returned with 'ok' value of 0. */
-    MONGO_BSON_INVALID,      /**< BSON not valid for the specified op. */
-    MONGO_BSON_NOT_FINISHED  /**< BSON object has not been finished. */
-} mongo_error_t;
-
-typedef enum mongo_cursor_error_t {
     MONGO_CURSOR_EXHAUSTED,  /**< The cursor has no more results. */
     MONGO_CURSOR_INVALID,    /**< The cursor has timed out or is not recognized. */
     MONGO_CURSOR_PENDING,    /**< Tailable cursor still alive but no data. */
-    MONGO_CURSOR_QUERY_FAIL, /**< The server returned an '$err' object, indicating query failure.
-                                  See conn->lasterrcode and conn->lasterrstr for details. */
-    MONGO_CURSOR_BSON_ERROR  /**< Something is wrong with the BSON provided. See conn->err
-                                  for details. */
-} mongo_cursor_error_t;
+    MONGO_BSON_INVALID,      /**< BSON not valid for the specified op. */
+    MONGO_BSON_NOT_FINISHED  /**< BSON object has not been finished. */
+} mongo_error_t;
 
 enum mongo_cursor_flags {
     MONGO_CURSOR_MUST_FREE = 1,      /**< mongo_cursor_destroy should free cursor. */
@@ -159,7 +155,7 @@ typedef struct {
     int flags;         /**< Flags used internally by this drivers. */
     int seen;          /**< Number returned so far. */
     bson current;      /**< This cursor's current bson object. */
-    mongo_cursor_error_t err; /**< Errors on this cursor. */
+    mongo_error_t err; /**< Errors on this cursor. */
     bson *query;       /**< Bitfield containing cursor options. */
     bson *fields;      /**< Bitfield containing cursor options. */
     int options;       /**< Bitfield containing cursor options. */
@@ -234,6 +230,18 @@ void mongo_parse_host( const char *host_string, mongo_host_port *host_port );
  *   mongo_conn_return_t will be set on the conn->err field.
  */
 int mongo_replset_connect( mongo *conn );
+
+/** Set a timeout for establishing the connection.  This
+ *  is a platform-specific feature, and only work on *nix
+ *  system. You must also compile for linux to support this.
+ *
+ *  @param conn a mongo object.
+ *  @param millis timeout time in milliseconds.
+ *
+ *  @return MONGO_OK. On error, return MONGO_ERROR and
+ *    set the conn->err field.
+ */
+int mongo_set_connect_timeout( mongo *conn, int millis );
 
 /** Set a timeout for operations on this connection. This
  *  is a platform-specific feature, and only work on *nix

@@ -30,6 +30,7 @@ typedef int socklen_t;
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -48,7 +49,10 @@ typedef int socklen_t;
 MONGO_EXTERN_C_START
 
 /* This is a no-op in the generic implementation. */
+void sig_pipe_handler( int signo );
 int mongo_set_socket_op_timeout( mongo *conn, int millis );
+int mongo_set_socket_conn_timeout( mongo *conn, int millis );
+int wait_for_socket( mongo *conn, int type );
 int mongo_read_socket( mongo *conn, void *buf, int len );
 int mongo_write_socket( mongo *conn, const void *buf, int len );
 int mongo_socket_connect( mongo *conn, const char *host, int port );
