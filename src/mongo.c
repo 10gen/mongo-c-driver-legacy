@@ -768,7 +768,7 @@ void mongo_cursor_set_options( mongo_cursor *cursor, int options ) {
 }
 
 
-void set_slave_okay( mongo_cursor *cursor ) {
+void mongo_set_slave_okay( mongo_cursor *cursor ) {
     int options = cursor->options;
     options = ( options | MONGO_SLAVE_OK );
     mongo_cursor_set_options( cursor, options );

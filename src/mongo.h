@@ -658,6 +658,15 @@ int mongo_cmd_get_prev_error( mongo *conn, const char *db, bson *out );
  */
 void mongo_cmd_reset_error( mongo *conn, const char *db );
 
+/**
+ * Set the slave ok flag on the connection.
+ *
+ * @param conn a mongo object.
+ */
+
+void mongo_set_slave_okay( mongo_cursor *cursor );
+
+
 MONGO_EXTERN_C_END
 
 #endif
