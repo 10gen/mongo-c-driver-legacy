@@ -19,6 +19,10 @@
 #include "net.h"
 #include <string.h>
 
+#ifndef NI_MAXSERV
+# define NI_MAXSERV 32
+#endif
+
 int mongo_write_socket( mongo *conn, const void *buf, int len ) {
     const char *cbuf = buf;
     while ( len ) {
@@ -54,25 +58,81 @@ int mongo_set_socket_op_timeout( mongo *conn, int millis ) {
     return MONGO_OK;
 }
 
-static int mongo_create_socket( mongo *conn ) {
-    int fd;
+#ifdef _MONGO_USE_GETADDRINFO
+int mongo_socket_connect( mongo *conn, const char *host, int port ) {
+    char port_str[NI_MAXSERV];
+    int status;
 
-    if( ( fd = socket( AF_INET, SOCK_STREAM, 0 ) ) == -1 ) {
-        conn->err = MONGO_CONN_NO_SOCKET;
+    struct addrinfo ai_hints;
+    struct addrinfo *ai_list = NULL;
+    struct addrinfo *ai_ptr = NULL;
+
+    conn->sock = 0;
+    conn->connected = 0;
+
+    bson_sprintf( port_str, "%d", port );
+
+    memset( &ai_hints, 0, sizeof( ai_hints ) );
+#ifdef AI_ADDRCONFIG
+    ai_hints.ai_flags = AI_ADDRCONFIG;
+#endif
+    ai_hints.ai_family = AF_UNSPEC;
+    ai_hints.ai_socktype = SOCK_STREAM;
+
+    status = getaddrinfo( host, port_str, &ai_hints, &ai_list );
+    if ( status != 0 ) {
+        bson_errprintf( "getaddrinfo failed: %s", gai_strerror( status ) );
+        conn->err = MONGO_CONN_ADDR_FAIL;
         return MONGO_ERROR;
     }
-    conn->sock = fd;
+
+    for ( ai_ptr = ai_list; ai_ptr != NULL; ai_ptr = ai_ptr->ai_next ) {
+        conn->sock = socket( ai_ptr->ai_family, ai_ptr->ai_socktype, ai_ptr->ai_protocol );
+        if ( conn->sock < 0 ) {
+            conn->sock = 0;
+            continue;
+        }
+
+        status = connect( conn->sock, ai_ptr->ai_addr, ai_ptr->ai_addrlen );
+        if ( status != 0 ) {
+            mongo_close_socket( conn->sock );
+            conn->sock = 0;
+            continue;
+        }
+
+        if ( ai_ptr->ai_protocol == IPPROTO_TCP ) {
+            int flag = 1;
+
+            setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY,
+                        ( void * ) &flag, sizeof( flag ) );
+            if ( conn->op_timeout_ms > 0 )
+                mongo_set_socket_op_timeout( conn, conn->op_timeout_ms );
+        }
+
+        conn->connected = 1;
+        break;
+    }
+
+    freeaddrinfo( ai_list );
+
+    if ( ! conn->connected ) {
+        conn->err = MONGO_CONN_FAIL;
+        return MONGO_ERROR;
+    }
 
     return MONGO_OK;
 }
-
+#else
 int mongo_socket_connect( mongo *conn, const char *host, int port ) {
     struct sockaddr_in sa;
     socklen_t addressSize;
     int flag = 1;
 
-    if( mongo_create_socket( conn ) != MONGO_OK )
+    if ( ( conn->sock = socket( AF_INET, SOCK_STREAM, 0 ) ) < 0 ) {
+        conn->sock = 0;
+        conn->err = MONGO_CONN_NO_SOCKET;
         return MONGO_ERROR;
+    }
 
     memset( sa.sin_zero , 0 , sizeof( sa.sin_zero ) );
     sa.sin_family = AF_INET;
@@ -89,6 +149,7 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
     }
 
     setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, ( char * ) &flag, sizeof( flag ) );
+
     if( conn->op_timeout_ms > 0 )
         mongo_set_socket_op_timeout( conn, conn->op_timeout_ms );
 
@@ -96,3 +157,4 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
 
     return MONGO_OK;
 }
+#endif
