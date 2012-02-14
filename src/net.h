@@ -22,10 +22,11 @@
 #include "mongo.h"
 
 #ifdef _WIN32
+#include <winsock2.h>
 #include <windows.h>
-#include <winsock.h>
+#include <ws2tcpip.h>
+#include <wspiapi.h>
 #define mongo_close_socket(sock) ( closesocket(sock) )
-typedef int socklen_t;
 #else
 #include <arpa/inet.h>
 #include <sys/types.h>
@@ -41,7 +42,7 @@ typedef int socklen_t;
 #include <unistd.h>
 #endif
 
-#if defined(_XOPEN_SOURCE) || defined(_POSIX_SOURCE) || _POSIX_C_SOURCE >= 1
+#if defined(_XOPEN_SOURCE) || defined(_POSIX_SOURCE) || _POSIX_C_SOURCE >= 1 || defined(_WIN32)
 #define _MONGO_USE_GETADDRINFO
 #endif
 

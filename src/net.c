@@ -19,6 +19,10 @@
 #include "net.h"
 #include <string.h>
 
+#ifdef _WIN32
+#define snprintf _snprintf
+#endif
+
 int mongo_write_socket( mongo *conn, const void *buf, int len ) {
     const char *cbuf = buf;
     while ( len ) {
@@ -66,6 +70,49 @@ static int mongo_create_socket( mongo *conn ) {
     return MONGO_OK;
 }
 
+#ifdef _MONGO_USE_GETADDRINFO
+int mongo_socket_connect( mongo *conn, const char *host, int port ) {
+
+    struct addrinfo *addrs = NULL;
+    struct addrinfo hints;
+    char port_str[12];
+    int flag = 1;
+    int ret;
+
+    conn->sock = 0;
+    conn->connected = 0;
+
+    memset( &hints, 0, sizeof( hints ) );
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if( mongo_create_socket( conn ) != MONGO_OK )
+        return MONGO_ERROR;
+
+    snprintf( port_str, sizeof(port_str), "%d", port );
+    if( (ret = getaddrinfo( host, port_str, &hints, &addrs )) != 0 ) {
+        bson_errprintf( "getaddrinfo failed: %s", gai_strerror( ret ) );
+        conn->err = MONGO_CONN_ADDR_FAIL;
+        return MONGO_ERROR;
+    }
+
+    if ( connect( conn->sock, addrs->ai_addr, addrs->ai_addrlen ) == -1 ) {
+        mongo_close_socket( conn->sock );
+        freeaddrinfo( addrs );
+        conn->err = MONGO_CONN_FAIL;
+        return MONGO_ERROR;
+    }
+
+    setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, ( char * )&flag, sizeof( flag ) );
+    if( conn->op_timeout_ms > 0 )
+        mongo_set_socket_op_timeout( conn, conn->op_timeout_ms );
+
+    conn->connected = 1;
+    freeaddrinfo( addrs );
+
+    return MONGO_OK;
+}
+#else
 int mongo_socket_connect( mongo *conn, const char *host, int port ) {
     struct sockaddr_in sa;
     socklen_t addressSize;
@@ -96,3 +143,4 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
 
     return MONGO_OK;
 }
+#endif
