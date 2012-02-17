@@ -432,15 +432,16 @@ MONGO_EXPORT int mongo_replset_connect( mongo *conn ) {
     node = conn->replset->seeds;
     while( node != NULL ) {
         res = mongo_socket_connect( conn, ( const char * )&node->host, node->port );
+        node = node->next;
+
         if( res != MONGO_OK )
-            return MONGO_ERROR;
+            /* keep looking for the host list, even if a seed is not responding */
+            continue;
 
         mongo_replset_check_seed( conn );
 
         if( conn->replset->hosts )
             break;
-
-        node = node->next;
     }
 
     /* Iterate over the host list, checking for the primary node. */
