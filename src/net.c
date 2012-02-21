@@ -19,17 +19,22 @@
 #include "net.h"
 #include <errno.h>
 #include <string.h>
+#include <errno.h>
+#include <signal.h>
 
 #ifndef NI_MAXSERV
 # define NI_MAXSERV 32
 #endif
+#ifndef MSG_NOSIGNAL
+# define MSG_NOSIGNAL 0
+#endif
 
-int mongo_write_socket( mongo *conn, const void *buf, int len ) {
+int mongo_write_socket( mongo *conn, const void *buf, size_t len ) {
     const char *cbuf = buf;
     int flags = MSG_NOSIGNAL;
 
     while ( len ) {
-        int sent = send( conn->sock, cbuf, len, flags );
+        size_t sent = send( conn->sock, cbuf, len, flags );
         if ( sent == -1 ) {
             if (errno == EPIPE) 
                 conn->connected = 0;
@@ -43,10 +48,10 @@ int mongo_write_socket( mongo *conn, const void *buf, int len ) {
     return MONGO_OK;
 }
 
-int mongo_read_socket( mongo *conn, void *buf, int len ) {
+int mongo_read_socket( mongo *conn, void *buf, size_t len ) {
     char *cbuf = buf;
     while ( len ) {
-        int sent = recv( conn->sock, cbuf, len, 0 );
+        size_t sent = recv( conn->sock, cbuf, len, 0 );
         if ( sent == 0 || sent == -1 ) {
             conn->err = MONGO_IO_ERROR;
             return MONGO_ERROR;
@@ -127,10 +132,10 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
 
     return MONGO_OK;
 }
+
 #else
 int mongo_socket_connect( mongo *conn, const char *host, int port ) {
-    struct sockaddr_in sa;
-    socklen_t addressSize;
+    struct addrinfo req, *ans = NULL, *ans_cursor;
     int flag = 1;
 
     if ( ( conn->sock = socket( AF_INET, SOCK_STREAM, 0 ) ) < 0 ) {
@@ -139,14 +144,15 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
         return MONGO_ERROR;
     }
 
-    memset( sa.sin_zero , 0 , sizeof( sa.sin_zero ) );
-    sa.sin_family = AF_INET;
-    sa.sin_port = htons( port );
-    sa.sin_addr.s_addr = inet_addr( host );
-    addressSize = sizeof( sa );
+    freeaddrinfo( ans );
+    if ( ans_cursor ) {
+        setsockopt( conn->sock, IPPROTO_TCP, TCP_NODELAY, ( char * ) &flag, sizeof( flag ) );
+        if ( conn->op_timeout_ms > 0 )
+            mongo_set_socket_op_timeout( conn, conn->op_timeout_ms );
 
-    if ( connect( conn->sock, ( struct sockaddr * )&sa, addressSize ) == -1 ) {
-        mongo_close_socket( conn->sock );
+        conn->connected = 1;
+        return MONGO_OK;
+    } else {
         conn->connected = 0;
         conn->sock = 0;
         conn->err = MONGO_CONN_FAIL;
@@ -165,7 +171,7 @@ int mongo_socket_connect( mongo *conn, const char *host, int port ) {
 
 #endif
 
-int mongo_sock_init() {
+int mongo_sock_init( void ) {
 
 #if defined(_WIN32)
     WSADATA wsaData;

@@ -23,7 +23,7 @@ int main() {
     }
 
     /* if the collection doesn't exist dropping it will fail */
-    if ( !mongo_cmd_drop_collection( conn, "test", col, NULL )
+    if ( !mongo_cmd_drop_collection( conn, "test", col )
             && mongo_count( conn, db, col, NULL ) != 0 ) {
         printf( "failed to drop collection\n" );
         exit( 1 );
