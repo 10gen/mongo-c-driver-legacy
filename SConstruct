@@ -123,7 +123,7 @@ coreFiles = ["src/md5.c" ]
 mFiles = [ "src/mongo.c", NET_LIB, "src/gridfs.c"]
 bFiles = [ "src/bson.c", "src/numbers.c", "src/encoding.c"]
 
-mHeaders = ["src/mongo.h"]
+mHeaders = ["src/mongo.h", "src/platform.h"]
 bHeaders = ["src/bson.h"]
 headers = mHeaders + bHeaders
 
