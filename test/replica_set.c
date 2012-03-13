@@ -58,7 +58,7 @@ int test_reconnect( const char *set_name ) {
         sleep( 10 );
         e = 1;
         do {
-            res = mongo_find_one( conn, "foo.bar", bson_empty( &b ), bson_empty( &b ), NULL );
+            res = mongo_find_one( conn, "foo.bar", bson_empty( &b ), bson_empty( &b ), NULL, 0 );
             if( res == MONGO_ERROR && conn->err == MONGO_IO_ERROR ) {
                 sleep( 2 );
                 if( e++ < 30 ) {

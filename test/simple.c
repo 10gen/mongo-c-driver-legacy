@@ -68,7 +68,7 @@ int main() {
     }
 
     mongo_cmd_drop_collection( conn, "test", col, NULL );
-    mongo_find_one( conn, ns, bson_empty( &b ), bson_empty( &b ), NULL );
+    mongo_find_one( conn, ns, bson_empty( &b ), bson_empty( &b ), NULL, 0 );
 
     for( i=0; i< 5; i++ ) {
         bson_init( &b );

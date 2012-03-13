@@ -423,7 +423,7 @@ int gridfs_find_query( gridfs *gfs, bson *query,
     bson_finish( &finalQuery );
 
     i = ( mongo_find_one( gfs->client, gfs->files_ns,
-                          &finalQuery, NULL, &out ) == MONGO_OK );
+                          &finalQuery, NULL, &out, 0 ) == MONGO_OK );
     bson_destroy( &uploadDate );
     bson_destroy( &finalQuery );
     if ( !i )
@@ -579,7 +579,7 @@ MONGO_EXPORT void gridfile_get_chunk( gridfile *gfile, int n, bson* out ) {
 
     result = (mongo_find_one(gfile->gfs->client,
                              gfile->gfs->chunks_ns,
-                             &query, NULL, out ) == MONGO_OK );
+                             &query, NULL, out, 0 ) == MONGO_OK );
     bson_destroy( &query );
     if (!result) {
         bson empty;

@@ -50,7 +50,7 @@ int main() {
     bson_destroy( &obj );
 
     /* should clear lasterror but not preverror */
-    mongo_find_one( conn, ns, bson_empty( &obj ), bson_empty( &obj ), NULL );
+    mongo_find_one( conn, ns, bson_empty( &obj ), bson_empty( &obj ), NULL, 0 );
 
     ASSERT( mongo_cmd_get_prev_error( conn, db, NULL ) == MONGO_ERROR );
     ASSERT( mongo_cmd_get_last_error( conn, db, NULL ) == MONGO_OK );

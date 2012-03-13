@@ -480,11 +480,12 @@ MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor );
  * @param query the bson query.
  * @param fields a bson document of the fields to be returned.
  * @param out a bson document in which to put the query result.
+ * @param options a bitfield containing cursor options.
  *
  */
 /* out can be NULL if you don't care about results. useful for commands */
 MONGO_EXPORT bson_bool_t mongo_find_one( mongo *conn, const char *ns, bson *query,
-                            bson *fields, bson *out );
+                                         bson *fields, bson *out, int options );
 
 /* MongoDB Helper Functions */
 
