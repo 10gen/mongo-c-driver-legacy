@@ -27,7 +27,7 @@ void test_index_helper( mongo *conn ) {
 
     bson_finish( &b );
 
-    mongo_find_one( conn, "test.system.indexes", &b, NULL, &out );
+    mongo_find_one( conn, "test.system.indexes", &b, NULL, &out, 0 );
 
     bson_print( &out );
 

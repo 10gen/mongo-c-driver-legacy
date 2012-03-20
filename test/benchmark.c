@@ -240,7 +240,7 @@ static void find_one( const char *ns ) {
     int i;
     for ( i=0; i < PER_TRIAL; i++ ) {
         make_query( &b );
-        ASSERT( mongo_find_one( conn, ns, &b, NULL, NULL ) == MONGO_OK );
+        ASSERT( mongo_find_one( conn, ns, &b, NULL, NULL, 0 ) == MONGO_OK );
         bson_destroy( &b );
     }
 }

@@ -258,10 +258,7 @@ MONGO_EXPORT int mongo_connect( mongo *conn , const char *host, int port ) {
     if( mongo_socket_connect( conn, host, port ) != MONGO_OK )
         return MONGO_ERROR;
 
-    if( mongo_check_is_master( conn ) != MONGO_OK )
-        return MONGO_ERROR;
-    else
-        return MONGO_OK;
+    return MONGO_OK;
 }
 
 MONGO_EXPORT void mongo_replset_init( mongo *conn, const char *name ) {
@@ -851,13 +848,14 @@ MONGO_EXPORT mongo_cursor *mongo_find( mongo *conn, const char *ns, bson *query,
 }
 
 MONGO_EXPORT int mongo_find_one( mongo *conn, const char *ns, bson *query,
-                    bson *fields, bson *out ) {
+                    bson *fields, bson *out, int options ) {
 
     mongo_cursor cursor[1];
     mongo_cursor_init( cursor, conn, ns );
     mongo_cursor_set_query( cursor, query );
     mongo_cursor_set_fields( cursor, fields );
     mongo_cursor_set_limit( cursor, 1 );
+    mongo_cursor_set_options( cursor, options );
 
     if ( mongo_cursor_next( cursor ) == MONGO_OK ) {
         bson_init_size( out, bson_size( (bson *)&cursor->current ) );
@@ -1080,7 +1078,7 @@ MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, bson *command,
     strcpy( ns, db );
     strcpy( ns+sl, ".$cmd" );
 
-    res = mongo_find_one( conn, ns, command, bson_empty( &fields ), &response );
+    res = mongo_find_one( conn, ns, command, bson_empty( &fields ), &response, 0 );
     bson_free( ns );
 
     if( res != MONGO_OK )
