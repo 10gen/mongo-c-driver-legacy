@@ -25,13 +25,16 @@
 #ifndef NI_MAXSERV
 # define NI_MAXSERV 32
 #endif
+#ifndef MSG_NOSIGNAL
+# define MSG_NOSIGNAL 0
+#endif
 
-int mongo_write_socket( mongo *conn, const void *buf, int len ) {
+int mongo_write_socket( mongo *conn, const void *buf, size_t len ) {
     const char *cbuf = buf;
     int flags = MSG_NOSIGNAL;
 
     while ( len ) {
-        int sent = send( conn->sock, cbuf, len, flags );
+        size_t sent = send( conn->sock, cbuf, len, flags );
         if ( sent == -1 ) {
             if (errno == EPIPE) 
                 conn->connected = 0;
@@ -45,10 +48,10 @@ int mongo_write_socket( mongo *conn, const void *buf, int len ) {
     return MONGO_OK;
 }
 
-int mongo_read_socket( mongo *conn, void *buf, int len ) {
+int mongo_read_socket( mongo *conn, void *buf, size_t len ) {
     char *cbuf = buf;
     while ( len ) {
-        int sent = recv( conn->sock, cbuf, len, 0 );
+        size_t sent = recv( conn->sock, cbuf, len, 0 );
         if ( sent == 0 || sent == -1 ) {
             conn->err = MONGO_IO_ERROR;
             return MONGO_ERROR;

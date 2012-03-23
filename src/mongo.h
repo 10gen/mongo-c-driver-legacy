@@ -47,7 +47,8 @@ typedef enum mongo_error_t {
     MONGO_READ_SIZE_ERROR,   /**< The response is not the expected length. */
     MONGO_COMMAND_FAILED,    /**< The command returned with 'ok' value of 0. */
     MONGO_BSON_INVALID,      /**< BSON not valid for the specified op. */
-    MONGO_BSON_NOT_FINISHED  /**< BSON object has not been finished. */
+    MONGO_BSON_NOT_FINISHED, /**< BSON object has not been finished. */
+    MONGO_COMMAND_OVERFLOW   /**< the message to send is too long */
 } mongo_error_t;
 
 typedef enum mongo_cursor_error_t {
@@ -56,8 +57,9 @@ typedef enum mongo_cursor_error_t {
     MONGO_CURSOR_PENDING,    /**< Tailable cursor still alive but no data. */
     MONGO_CURSOR_QUERY_FAIL, /**< The server returned an '$err' object, indicating query failure.
                                   See conn->lasterrcode and conn->lasterrstr for details. */
-    MONGO_CURSOR_BSON_ERROR  /**< Something is wrong with the BSON provided. See conn->err
+    MONGO_CURSOR_BSON_ERROR,  /**< Something is wrong with the BSON provided. See conn->err
                                   for details. */
+    MONGO_CURSOR_OVERFLOW    /**< the message to send is too long */
 } mongo_cursor_error_t;
 
 enum mongo_cursor_flags {
@@ -169,7 +171,7 @@ typedef struct {
 
 /* Connection API */
 
-MONGO_EXPORT mongo* mongo_create();
+MONGO_EXPORT mongo* mongo_create( void );
 MONGO_EXPORT void mongo_dispose(mongo* conn);
 MONGO_EXPORT int mongo_get_err(mongo* conn);
 MONGO_EXPORT int mongo_is_connected(mongo* conn);
@@ -178,7 +180,7 @@ MONGO_EXPORT const char* mongo_get_primary(mongo* conn);
 MONGO_EXPORT int mongo_get_socket(mongo* conn) ;
 MONGO_EXPORT int mongo_get_host_count(mongo* conn);
 MONGO_EXPORT const char* mongo_get_host(mongo* conn, int i);
-MONGO_EXPORT mongo_cursor* mongo_cursor_create();
+MONGO_EXPORT mongo_cursor* mongo_cursor_create( void );
 MONGO_EXPORT void mongo_cursor_dispose(mongo_cursor* cursor);
 MONGO_EXPORT int  mongo_get_server_err(mongo* conn);
 MONGO_EXPORT const char*  mongo_get_server_err_string(mongo* conn);
@@ -205,7 +207,7 @@ void mongo_init( mongo *conn );
  * @return MONGO_OK or MONGO_ERROR on failure. On failure, a constant of type
  *   mongo_error_t will be set on the conn->err field.
  */
-MONGO_EXPORT int mongo_connect( mongo *conn , const char *host, int port );
+MONGO_EXPORT bson_bool_t mongo_connect( mongo *conn , const char *host, int port );
 
 /**
  * Set up this connection object for connecting to a replica set.
@@ -316,7 +318,7 @@ MONGO_EXPORT void mongo_destroy( mongo *conn );
  *     field is MONGO_BSON_INVALID, check the err field
  *     on the bson struct for the reason.
  */
-MONGO_EXPORT int mongo_insert( mongo *conn, const char *ns, bson *data );
+MONGO_EXPORT bson_bool_t mongo_insert( mongo *conn, const char *ns, bson *data );
 
 /**
  * Insert a batch of BSON documents into a MongoDB server. This function
@@ -330,7 +332,7 @@ MONGO_EXPORT int mongo_insert( mongo *conn, const char *ns, bson *data );
  * @return MONGO_OK or MONGO_ERROR.
  *
  */
-MONGO_EXPORT int mongo_insert_batch( mongo *conn , const char *ns ,
+MONGO_EXPORT bson_bool_t mongo_insert_batch( mongo *conn , const char *ns ,
                         bson **data , int num );
 
 /**
@@ -345,7 +347,7 @@ MONGO_EXPORT int mongo_insert_batch( mongo *conn , const char *ns ,
  * @return MONGO_OK or MONGO_ERROR with error stored in conn object.
  *
  */
-MONGO_EXPORT int mongo_update( mongo *conn, const char *ns, const bson *cond,
+MONGO_EXPORT bson_bool_t mongo_update( mongo *conn, const char *ns, const bson *cond,
                   const bson *op, int flags );
 
 /**
@@ -366,7 +368,7 @@ MONGO_EXPORT int mongo_remove( mongo *conn, const char *ns, const bson *cond );
  * @param ns the namespace.
  * @param query the bson query.
  * @param fields a bson document of fields to be returned.
- * @param limit the maximum number of documents to retrun.
+ * @param limit the maximum number of documents to return.
  * @param skip the number of documents to skip.
  * @param options A bitfield containing cursor options.
  *
@@ -515,7 +517,7 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll,
  *
  * @return MONGO_OK if index is created successfully; otherwise, MONGO_ERROR.
  */
-MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, bson *key, int options, bson *out );
+MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const char *name, bson *key, int options, bson *out );
 
 /**
  * Create an index with a single key.
@@ -528,7 +530,45 @@ MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, bson *key, int
  *
  * @return true if the index was created.
  */
-bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns, const char *field, int options, bson *out );
+MONGO_EXPORT int mongo_create_simple_index( mongo *conn, const char *ns, const char *field, int options, bson *out );
+
+/**
+ * Create a cursor to iterate through all the indexes.
+ *
+ * @param conn a mongo object.
+ * @param ns the namespace.
+ * @param limit the maximum number of indexes to return.
+ *
+ * @return A cursor object allocated on the heap or NULL if
+ *     an error has occurred. For finer-grained error checking,
+ *     use the cursor builder API instead.
+ */
+mongo_cursor *mongo_index_list( mongo *conn, const char *ns, int skip, int limit );
+
+/**
+ * Get the number of indexes.
+ *
+ * @param conn a mongo object.
+ * @param ns the namespace.
+ *
+ * @return the number of indexes.
+ */
+double mongo_index_count( mongo *conn, const char *ns );
+
+/**
+ * Create a cursor to iterate through all the indexes.
+ *
+ * @param conn a mongo object.
+ * @param ns the namespace.
+ * @param index will be set with the list of indexes.
+ *
+ * @return returns 0 if there was no error.
+ */
+int mongo_drop_indexes( mongo *conn, const char *ns, bson *index );
+
+int mongo_reindex( mongo *conn, const char *ns );
+
+int mongo_map_reduce( mongo *conn, const char *ns, const char *map_function, const char *reduce_function, bson *query, bson *sort, int64_t limit, bson *out, int keeptemp, const char *finalize, bson *scope, int jsmode, int verbose, bson *output );
 
 /* ----------------------------
    COMMANDS
@@ -586,16 +626,50 @@ bson_bool_t mongo_simple_str_command( mongo *conn, const char *db, const char *c
 MONGO_EXPORT int mongo_cmd_drop_db( mongo *conn, const char *db );
 
 /**
+ * Create a collection.
+ *
+ * @param conn a mongo object.
+ * @param db the name of the database.
+ * @param collection the name of the collection to create.
+ *
+ * @return true if the collection drop was successful.
+ */
+bson_bool_t mongo_cmd_create_collection( mongo *conn, const char *db, const char *collection );
+
+/**
+ * Create a capped collection.
+ *
+ * @param conn a mongo object.
+ * @param db the name of the database.
+ * @param collection the name of the collection to drop.
+ * @param capsize cap size.
+ *
+ * @return true if the collection drop was successful.
+ */
+bson_bool_t mongo_cmd_create_capped_collection( mongo *conn, const char *db, const char *collection, int64_t capsize );
+
+/**
+ * Rename a collection.
+ *
+ * @param conn a mongo object.
+ * @param db the name of the database.
+ * @param oldcollection the old name of the collection.
+ * @param newcollection the new name of the collection.
+ *
+ * @return true if the collection drop was successful.
+ */
+bson_bool_t mongo_cmd_rename_collection( mongo *conn, const char *db, const char *oldcollection, const char *newcollection );
+
+/**
  * Drop a collection.
  *
  * @param conn a mongo object.
  * @param db the name of the database.
  * @param collection the name of the collection to drop.
- * @param out a BSON document containing the result of the command.
  *
  * @return true if the collection drop was successful.
  */
-MONGO_EXPORT bson_bool_t mongo_cmd_drop_collection( mongo *conn, const char *db, const char *collection, bson *out );
+MONGO_EXPORT bson_bool_t mongo_cmd_drop_collection( mongo *conn, const char *db, const char *collection );
 
 /**
  * Add a database user.
@@ -642,7 +716,7 @@ MONGO_EXPORT bson_bool_t mongo_cmd_ismaster( mongo *conn, bson *out );
  * @return MONGO_OK if no error and MONGO_ERROR on error. On error, check the values
  *     of conn->lasterrcode and conn->lasterrstr for the error status.
  */
-MONGO_EXPORT int mongo_cmd_get_last_error( mongo *conn, const char *db, bson *out );
+MONGO_EXPORT bson_bool_t mongo_cmd_get_last_error( mongo *conn, const char *db, bson *out );
 
 /**
  * Get the most recent error with the current connection.
@@ -654,7 +728,7 @@ MONGO_EXPORT int mongo_cmd_get_last_error( mongo *conn, const char *db, bson *ou
  * @return MONGO_OK if no error and MONGO_ERROR on error. On error, check the values
  *     of conn->lasterrcode and conn->lasterrstr for the error status.
  */
-MONGO_EXPORT int mongo_cmd_get_prev_error( mongo *conn, const char *db, bson *out );
+MONGO_EXPORT bson_bool_t mongo_cmd_get_prev_error( mongo *conn, const char *db, bson *out );
 
 /**
  * Reset the error state for the connection.

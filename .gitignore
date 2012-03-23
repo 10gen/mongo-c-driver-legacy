@@ -24,3 +24,5 @@ config.log
 docs/html
 docs/source/sphinx/build
 docs/source/doxygen
+
+.DS_Store

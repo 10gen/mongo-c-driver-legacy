@@ -37,7 +37,7 @@ void insert_sample_data( mongo *conn, int n ) {
 }
 
 void remove_sample_data( mongo *conn ) {
-    mongo_cmd_drop_collection( conn, "test", "cursors", NULL );
+    mongo_cmd_drop_collection( conn, "test", "cursors" );
 }
 
 int test_multiple_getmore( mongo *conn ) {

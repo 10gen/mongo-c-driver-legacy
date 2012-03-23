@@ -54,11 +54,11 @@ MONGO_EXTERN_C_START
 
 /* This is a no-op in the generic implementation. */
 int mongo_set_socket_op_timeout( mongo *conn, int millis );
-int mongo_read_socket( mongo *conn, void *buf, int len );
-int mongo_write_socket( mongo *conn, const void *buf, int len );
+int mongo_read_socket( mongo *conn, void *buf, size_t len );
+int mongo_write_socket( mongo *conn, const void *buf, size_t len );
 int mongo_socket_connect( mongo *conn, const char *host, int port );
 
 /* Initialize the socket services */
-MONGO_EXPORT int mongo_sock_init();
+MONGO_EXPORT int mongo_sock_init( void );
 MONGO_EXTERN_C_END
 #endif
