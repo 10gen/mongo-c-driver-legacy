@@ -19,6 +19,7 @@
 #include "env.h"
 #include <errno.h>
 #include <string.h>
+#include <signal.h>
 
 #ifndef NI_MAXSERV
 # define NI_MAXSERV 32
@@ -29,14 +30,14 @@ int mongo_write_socket( mongo *conn, const void *buf, int len ) {
 #ifdef _WIN32
     int flags = 0;
 #endif
-#ifdef MONGO_OSX_
+#ifdef __APPLE__
     int flags = 0;
 #else
     int flags = MSG_NOSIGNAL;
 #endif
 
     while ( len ) {
-        int sent = send( conn->sock, cbuf, len, flags );
+        ssize_t sent = send( conn->sock, cbuf, len, flags );
         if ( sent == -1 ) {
             if (errno == EPIPE) 
                 conn->connected = 0;
@@ -53,7 +54,7 @@ int mongo_write_socket( mongo *conn, const void *buf, int len ) {
 int mongo_read_socket( mongo *conn, void *buf, int len ) {
     char *cbuf = buf;
     while ( len ) {
-        int sent = recv( conn->sock, cbuf, len, 0 );
+        ssize_t sent = recv( conn->sock, cbuf, len, 0 );
         if ( sent == 0 || sent == -1 ) {
             conn->err = MONGO_IO_ERROR;
             return MONGO_ERROR;
