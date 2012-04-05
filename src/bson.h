@@ -138,7 +138,6 @@ typedef struct {
     int stack[32];
     int stackPos;
     int err; /**< Bitfield representing errors or warnings on this buffer */
-    char *errstr; /**< A string representation of the most recent error or warning. */
 } bson;
 
 #pragma pack(1)
