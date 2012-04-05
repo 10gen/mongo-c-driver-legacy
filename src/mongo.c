@@ -236,6 +236,10 @@ static int mongo_check_is_master( mongo *conn ) {
 
 void mongo_init( mongo *conn ) {
     memset( conn, 0, sizeof( mongo ) );
+    WORD wVersionRequested;
+    WSADATA wsaData;
+    wVersionRequested = MAKEWORD(1,1);
+    WSAStartup(wVersionRequested,&wsaData);//in Windows before using socket, we have to initialize it.
 }
 
 MONGO_EXPORT int mongo_connect( mongo *conn , const char *host, int port ) {
@@ -534,6 +538,7 @@ MONGO_EXPORT void mongo_destroy( mongo *conn ) {
     conn->err = 0;
     conn->lasterrcode = 0;
     conn->lasterrstr = NULL;
+    WSACleanup();//call the function to do cleanup job
 }
 
 /* Determine whether this BSON object is valid for the given operation.  */
