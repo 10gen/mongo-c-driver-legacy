@@ -49,6 +49,14 @@ AddOption('--standard-env',
           action='store_true',
           help='Set this option if you want to use basic, platform-agnostic networking.')
 
+AddOption('--prefix',
+          dest='prefix',
+          default='/usr/local',
+          type='string',
+          nargs=1,
+          action='store',
+          help='Set installation prefix (default: /usr/local)')
+
 import os, sys
 
 if GetOption('use_m32'):
@@ -162,16 +170,14 @@ bSharedObjs = env.SharedObject(bLibFiles)
 
 bsonEnv = env.Clone()
 if os.sys.platform == "linux2":
-    env.Append( SHLINKFLAGS = "-shared -Wl,-soname,libmongoc.so." + VERSION )
-    bsonEnv.Append( SHLINKFLAGS = "-shared -Wl,-soname,libbson.so." + VERSION )
+    env.Append( SHLINKFLAGS = "-shared -Wl,-soname,libmongoc.so" )
+    bsonEnv.Append( SHLINKFLAGS = "-shared -Wl,-soname,libbson.so" )
 
 dynm = env.SharedLibrary( "mongoc" , mSharedObjs )
 dynb = bsonEnv.SharedLibrary( "bson" , bSharedObjs )
 # ---- Install ----
-prefix = "/usr/local"
-
-env.Alias("install", env.Install(os.path.join(prefix, "lib"), [dynm[0] , dynb[0] ]))
-env.Alias("install", env.Install(os.path.join(prefix, "include"), headers))
+env.Alias("install", env.Install(os.path.join(GetOption('prefix'), "lib"), [dynm[0] , dynb[0] ]))
+env.Alias("install", env.Install(os.path.join(GetOption('prefix'), "include"), headers))
 
 env.Command("uninstall", None, Delete(FindInstalledFiles()))
 
