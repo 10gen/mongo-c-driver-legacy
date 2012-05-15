@@ -49,6 +49,14 @@ AddOption('--standard-env',
           action='store_true',
           help='Set this option if you want to use basic, platform-agnostic networking.')
 
+AddOption('--prefix',
+          dest='prefix',
+          default='/usr/local',
+          type='string',
+          nargs=1,
+          action='store',
+          help='installation prefix')
+          
 import os, sys
 
 if GetOption('use_m32'):
@@ -169,9 +177,9 @@ if os.sys.platform == "linux2":
 dynm = env.SharedLibrary( "mongoc" , mSharedObjs )
 dynb = bsonEnv.SharedLibrary( "bson" , bSharedObjs )
 # ---- Install ----
-prefix = "/usr/local"
+prefix = env.GetOption("prefix")
 
-env.Alias("install", env.Install(os.path.join(prefix, "lib"), [dynm[0] , dynb[0] ]))
+env.Alias("install", env.Install(os.path.join(prefix, "lib"), [dynm[0] , dynb[0], m[0], b[0] ]))
 env.Alias("install", env.Install(os.path.join(prefix, "include"), headers))
 
 env.Command("uninstall", None, Delete(FindInstalledFiles()))
