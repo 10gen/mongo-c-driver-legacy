@@ -755,7 +755,7 @@ MONGO_EXPORT int mongo_cmd_authenticate( mongo *conn, const char *db,
 /* return value is master status */
 MONGO_EXPORT bson_bool_t mongo_cmd_ismaster( mongo *conn, bson *out );
 
-MONGO_EXPORT int mongo_cmd_replset_get_status( mongo *conn, bson *out );
+MONGO_EXPORT int mongo_get_replset_config( mongo *conn, bson *out );
 
 /**
  * Get the error for the last command with the current connection.

@@ -564,7 +564,7 @@ static void mongo_replset_check_seed( mongo *conn ) {
 
     bson_init_size(&out,0);
 
-    if( mongo_cmd_replset_get_status(conn,&out) == MONGO_OK ){
+    if( mongo_get_replset_config(conn,&out) == MONGO_OK ){
 
         if( bson_find( &it, &out, "members" ) ) {
             data = bson_iterator_value( &it );
@@ -1886,12 +1886,12 @@ MONGO_EXPORT bson_bool_t mongo_cmd_authenticate( mongo *conn, const char *db, co
 
 
 #define REPLSET_COLLECTION_NAME "local.system.replset"
-MONGO_EXPORT int mongo_cmd_replset_get_status( mongo *conn,bson *out ) {
+MONGO_EXPORT int mongo_get_replset_config( mongo *conn,bson *out ) {
     bson response = {NULL, 0};
     bson empty;
     int sl = strlen( REPLSET_COLLECTION_NAME);
     char *ns = bson_malloc( sl + 1 ); 
-    int res, success = 0;
+    int res;
 
     strncpy( ns, REPLSET_COLLECTION_NAME , sl );
 
