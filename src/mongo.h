@@ -46,6 +46,7 @@ typedef enum mongo_error_t {
     MONGO_CONN_NOT_MASTER,   /**< Warning: connected to a non-master node (read-only). */
     MONGO_CONN_BAD_SET_NAME, /**< Given rs name doesn't match this replica set. */
     MONGO_CONN_NO_PRIMARY,   /**< Can't find primary in replica set. Connection closed. */
+    MONGO_CONN_NO_TARGET,
 
     MONGO_IO_ERROR,          /**< An error occurred while reading or writing on the socket. */
     MONGO_SOCKET_ERROR,      /**< Other socket error. */
@@ -138,9 +139,10 @@ typedef struct {
 #pragma pack()
 
 typedef struct mongo_host_port {
-    char host[255];
-    int port;
-    struct mongo_host_port *next;
+	char host[255];
+	int port;
+	char tag[255];
+	struct mongo_host_port *next;
 } mongo_host_port;
 
 typedef struct mongo_write_concern {
@@ -161,21 +163,23 @@ typedef struct {
 } mongo_replset;
 
 typedef struct mongo {
-    mongo_host_port *primary;  /**< Primary connection info. */
-    mongo_replset *replset;    /**< replset object if connected to a replica set. */
-    int sock;                  /**< Socket file descriptor. */
-    int flags;                 /**< Flags on this connection object. */
-    int conn_timeout_ms;       /**< Connection timeout in milliseconds. */
-    int op_timeout_ms;         /**< Read and write timeout in milliseconds. */
-    int max_bson_size;         /**< Largest BSON object allowed on this connection. */
-    bson_bool_t connected;     /**< Connection status. */
-    mongo_write_concern *write_concern; /**< The default write concern. */
+	mongo_host_port *primary;  /**< Primary connection info. */
+	mongo_replset *replset;    /**< replset object if connected to a replica set. */
+	int sock;                  /**< Socket file descriptor. */
+	int flags;                 /**< Flags on this connection object. */
+	int conn_timeout_ms;       /**< Connection timeout in milliseconds. */
+	int op_timeout_ms;         /**< Read and write timeout in milliseconds. */
+	int max_bson_size;         /**< Largest BSON object allowed on this connection. */
+	bson_bool_t connected;     /**< Connection status. */
+	mongo_write_concern *write_concern; /**< The default write concern. */
+	char *preferred_tag;
+	char *tag_name;
 
-    mongo_error_t err;          /**< Most recent driver error code. */
-    int errcode;                /**< Most recent errno or WSAGetLastError(). */
-    char errstr[MONGO_ERR_LEN]; /**< String version of error. */
-    int lasterrcode;            /**< getlasterror code from the server. */
-    char lasterrstr[MONGO_ERR_LEN]; /**< getlasterror string from the server. */
+	mongo_error_t err;          /**< Most recent driver error code. */
+	int errcode;                /**< Most recent errno or WSAGetLastError(). */
+	char errstr[MONGO_ERR_LEN]; /**< String version of error. */
+	int lasterrcode;            /**< getlasterror code from the server. */
+	char lasterrstr[MONGO_ERR_LEN]; /**< getlasterror string from the server. */
 } mongo;
 
 typedef struct {
@@ -750,6 +754,8 @@ MONGO_EXPORT int mongo_cmd_authenticate( mongo *conn, const char *db,
  */
 /* return value is master status */
 MONGO_EXPORT bson_bool_t mongo_cmd_ismaster( mongo *conn, bson *out );
+
+MONGO_EXPORT int mongo_cmd_replset_get_status( mongo *conn, bson *out );
 
 /**
  * Get the error for the last command with the current connection.

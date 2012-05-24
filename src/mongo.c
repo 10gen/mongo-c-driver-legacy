@@ -23,6 +23,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <float.h>
+#include <sys/time.h>
 
 MONGO_EXPORT mongo* mongo_create() {
     return (mongo*)bson_malloc(sizeof(mongo));
@@ -411,10 +413,15 @@ MONGO_EXPORT int mongo_connect( mongo *conn , const char *host, int port ) {
     if( mongo_env_socket_connect( conn, host, port ) != MONGO_OK )
         return MONGO_ERROR;
 
-    if( mongo_check_is_master( conn ) != MONGO_OK )
-        return MONGO_ERROR;
-    else
-        return MONGO_OK;
+    if(!(conn->flags & MONGO_SLAVE_OK))
+	    if( mongo_check_is_master( conn ) != MONGO_OK ){
+		    mongo_env_close_socket( conn->sock );
+		    conn->sock = 0;
+		    conn->connected = 0;
+		    return MONGO_ERROR;
+	    }
+    
+    return MONGO_OK;
 }
 
 MONGO_EXPORT void mongo_replset_init( mongo *conn, const char *name ) {
@@ -430,11 +437,17 @@ MONGO_EXPORT void mongo_replset_init( mongo *conn, const char *name ) {
     conn->primary = bson_malloc( sizeof( mongo_host_port ) );
 }
 
-static void mongo_replset_add_node( mongo_host_port **list, const char *host, int port ) {
+static void mongo_replset_add_node( mongo_host_port **list, const char *host, int port,const char *tag) {
     mongo_host_port *host_port = bson_malloc( sizeof( mongo_host_port ) );
     host_port->port = port;
     host_port->next = NULL;
     strncpy( host_port->host, host, strlen( host ) + 1 );
+
+    if(tag){
+	    strncpy(host_port->tag,tag,sizeof(host_port->tag) -1);
+	    host_port->tag[sizeof(host_port->tag) -1] = '\0';
+
+    }
 
     if( *list == NULL )
         *list = host_port;
@@ -460,7 +473,7 @@ static void mongo_replset_free_list( mongo_host_port **list ) {
 }
 
 MONGO_EXPORT void mongo_replset_add_seed( mongo *conn, const char *host, int port ) {
-    mongo_replset_add_node( &conn->replset->seeds, host, port );
+	mongo_replset_add_node( &conn->replset->seeds, host, port, NULL);
 }
 
 void mongo_parse_host( const char *host_string, mongo_host_port *host_port ) {
@@ -488,46 +501,86 @@ void mongo_parse_host( const char *host_string, mongo_host_port *host_port ) {
         host_port->port = MONGO_DEFAULT_PORT;
 }
 
+static void
+mongo_replset_one_seed(bson *member,mongo *conn)
+{
+	bson_type t;
+	bson_iterator it,it_sub;
+	bson_bool_t arbiterOnly = 0;
+	mongo_host_port *host_port;
+	const char *host_string = NULL;
+	bson sub[1];
+
+	if(!member)
+		return;
+	bson_iterator_init(&it,member);
+	t = bson_find(&it,member,"arbiterOnly");
+
+	if( t == BSON_BOOL )
+		arbiterOnly = bson_iterator_bool(&it);
+	
+	/* skip arbiter */
+	if(arbiterOnly)
+		return;
+	
+	t = bson_find(&it,member,"host");
+	if( t == BSON_STRING )
+		host_string = bson_iterator_string(&it);
+
+	if(!host_string)
+		return;
+	
+	host_port = bson_malloc( sizeof( mongo_host_port ) );
+	mongo_parse_host( host_string, host_port );
+	
+	if( host_port ) {
+		
+		t = bson_find(&it,member,"tags");
+		if(t == BSON_OBJECT && conn->tag_name){
+			bson_iterator_subobject(&it,sub);
+			t = bson_find(&it_sub,sub,conn->tag_name);
+			if(t == BSON_STRING){
+				strncpy(host_port->tag,bson_iterator_string(&it_sub),sizeof(host_port->tag) -1);
+				host_port->tag[sizeof(host_port->tag) -1] = '\0';
+			}
+		}
+		
+		mongo_replset_add_node( &conn->replset->hosts,
+				host_port->host, host_port->port,(const char*)host_port->tag);
+		
+		bson_free( host_port );
+		host_port = NULL;
+	}
+
+	return;
+}
+
 static void mongo_replset_check_seed( mongo *conn ) {
     bson out;
-    bson hosts;
+    bson member[1];
     const char *data;
     bson_iterator it;
     bson_iterator it_sub;
-    const char *host_string;
-    mongo_host_port *host_port = NULL;
 
-    out.data = NULL;
+    bson_init_size(&out,0);
 
-    hosts.data = NULL;
+    if( mongo_cmd_replset_get_status(conn,&out) == MONGO_OK ){
 
-    if( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
-
-        if( bson_find( &it, &out, "hosts" ) ) {
+        if( bson_find( &it, &out, "members" ) ) {
             data = bson_iterator_value( &it );
             bson_iterator_from_buffer( &it_sub, data );
 
             /* Iterate over host list, adding each host to the
              * connection's host list. */
             while( bson_iterator_next( &it_sub ) ) {
-                host_string = bson_iterator_string( &it_sub );
-
-                host_port = bson_malloc( sizeof( mongo_host_port ) );
-                mongo_parse_host( host_string, host_port );
-
-                if( host_port ) {
-                    mongo_replset_add_node( &conn->replset->hosts,
-                                            host_port->host, host_port->port );
-
-                    bson_free( host_port );
-                    host_port = NULL;
-                }
+		bson_iterator_subobject( &it_sub ,member);
+		mongo_replset_one_seed(member,conn);
+		
             }
         }
     }
 
     bson_destroy( &out );
-    bson_destroy( &hosts );
     mongo_env_close_socket( conn->sock );
     conn->sock = 0;
     conn->connected = 0;
@@ -569,12 +622,160 @@ static int mongo_replset_check_host( mongo *conn ) {
 
     if( ismaster ) {
         conn->replset->primary_connected = 1;
-    } else {
+    } else if( !(conn->flags & MONGO_SLAVE_OK) ){
         mongo_env_close_socket( conn->sock );
     }
 
     return MONGO_OK;
 }
+
+
+#define ACCEPTABLE_LATENCY 10000
+
+static unsigned long microseconds(void)
+{
+	struct timeval time;
+	gettimeofday(&time,NULL);
+	return time.tv_sec*1000000 + time.tv_usec;
+}
+
+
+static void 
+remember_primary_node(mongo *conn,mongo_host_port *node)
+{
+	if(!conn || !node)
+		return;
+
+	if( conn->replset->primary_connected ) {
+		strncpy( conn->primary->host, node->host, strlen( node->host ) + 1 );
+		conn->primary->port = node->port;
+	}
+}
+
+static int mongo_replset_connect_primary(mongo *conn)
+{
+	int res = 0;
+	mongo_host_port *node = conn->replset->hosts;
+
+	while( node != NULL ) {
+		res = mongo_env_socket_connect( conn, ( const char * )&node->host, node->port );
+		
+		if( res == MONGO_OK ) {
+			if( mongo_replset_check_host( conn ) != MONGO_OK )
+				return MONGO_ERROR;
+
+			/* Primary found, so return. */
+			else if( conn->replset->primary_connected ) {
+				remember_primary_node(conn,node);
+				return MONGO_OK;
+			}
+
+			/* No primary, so close the connection. */
+			else {
+				mongo_env_close_socket( conn->sock );
+				conn->sock = 0;
+				conn->connected = 0;
+			}
+		}
+		
+		node = node->next;
+	}
+
+
+	conn->err = MONGO_CONN_NO_PRIMARY;
+	return MONGO_ERROR;
+}
+
+static int mongo_replset_connect_measure(mongo *conn)
+{
+	int res = 0;
+	mongo_host_port *node = conn->replset->hosts;
+	double start,end;
+	double best = DBL_MAX;
+	double current;
+	int socket = 0;
+
+	while( node != NULL ) {
+		start = microseconds();
+		res = mongo_env_socket_connect( conn, ( const char * )&node->host, node->port );
+		if( res == MONGO_OK ) {
+
+			if( mongo_replset_check_host( conn ) != MONGO_OK ){
+
+				return MONGO_ERROR;
+
+			}else {
+				end = microseconds();
+				current = end - start;
+				if(current < best){
+					best = current;
+					socket = conn->sock;
+					remember_primary_node(conn,node);
+					if(current < ACCEPTABLE_LATENCY)
+						break;
+				}else{
+					mongo_env_close_socket( conn->sock );
+				}
+				conn->sock = 0;
+				conn->connected = 0;
+			}
+		}
+		
+		node = node->next;
+	}
+
+	if(socket != 0){
+		conn->sock = socket;
+		conn->connected = 1;
+		return MONGO_OK;
+	}else
+		conn->err = MONGO_CONN_NO_PRIMARY;
+	return MONGO_ERROR;
+
+}
+
+static int
+string_is_empty(const char *str)
+{
+	return !str ||  strlen(str) == 0;
+}
+
+static int mongo_replset_connect_tag(mongo *conn)
+{
+	int res = 0;
+	mongo_host_port *node = conn->replset->hosts;
+	
+	if(string_is_empty(conn->preferred_tag))
+		goto error_exit;
+
+
+	while( node != NULL ) {
+		
+		if( !strcmp(conn->preferred_tag,node->tag)){
+			
+			res = mongo_env_socket_connect( conn, ( const char * )&node->host, node->port );
+			if( res == MONGO_OK ) {
+				
+				if( mongo_replset_check_host( conn ) != MONGO_OK ){
+				
+					return MONGO_ERROR;
+
+				}else {
+
+					remember_primary_node(conn,node);
+					return MONGO_OK;
+				}
+			}
+		}
+		
+		node = node->next;
+	}
+
+error_exit:
+	conn->err = MONGO_CONN_NO_TARGET;
+	return MONGO_ERROR;
+}
+
 
 MONGO_EXPORT int mongo_replset_connect( mongo *conn ) {
 
@@ -602,38 +803,14 @@ MONGO_EXPORT int mongo_replset_connect( mongo *conn ) {
     if( !conn->replset->hosts ) {
         conn->err = MONGO_CONN_NO_PRIMARY;
         return MONGO_ERROR;
-    } else {
-        node = conn->replset->hosts;
-
-        while( node != NULL ) {
-            res = mongo_env_socket_connect( conn, ( const char * )&node->host, node->port );
-
-            if( res == MONGO_OK ) {
-                if( mongo_replset_check_host( conn ) != MONGO_OK )
-                    return MONGO_ERROR;
-
-                /* Primary found, so return. */
-                else if( conn->replset->primary_connected ) {
-                    strncpy( conn->primary->host, node->host, strlen( node->host ) + 1 );
-                    conn->primary->port = node->port;
-                    return MONGO_OK;
-                }
-
-                /* No primary, so close the connection. */
-                else {
-                    mongo_env_close_socket( conn->sock );
-                    conn->sock = 0;
-                    conn->connected = 0;
-                }
-            }
-
-            node = node->next;
-        }
-    }
-
-
-    conn->err = MONGO_CONN_NO_PRIMARY;
-    return MONGO_ERROR;
+    } 
+    
+    if( conn->flags | MONGO_SLAVE_OK){
+	    res = mongo_replset_connect_tag(conn);
+	    if(res == MONGO_OK)
+		    return res;
+	    return mongo_replset_connect_measure(conn);
+    }else return mongo_replset_connect_primary(conn);
 }
 
 MONGO_EXPORT int mongo_set_op_timeout( mongo *conn, int millis ) {
@@ -696,7 +873,14 @@ MONGO_EXPORT void mongo_destroy( mongo *conn ) {
     }
 
     bson_free( conn->primary );
-
+    if(conn->preferred_tag){
+	    free(conn->preferred_tag);
+	    conn->preferred_tag = NULL;
+    }
+    if(conn->tag_name){
+	    free(conn->tag_name);
+	    conn->tag_name = NULL;
+    }
     mongo_clear_errors( conn );
 }
 
@@ -1698,4 +1882,28 @@ MONGO_EXPORT bson_bool_t mongo_cmd_authenticate( mongo *conn, const char *db, co
     bson_destroy( &cmd );
 
     return result;
+}
+
+
+#define REPLSET_COLLECTION_NAME "local.system.replset"
+MONGO_EXPORT int mongo_cmd_replset_get_status( mongo *conn,bson *out ) {
+    bson response = {NULL, 0};
+    bson empty;
+    int sl = strlen( REPLSET_COLLECTION_NAME);
+    char *ns = bson_malloc( sl + 1 ); 
+    int res, success = 0;
+
+    strncpy( ns, REPLSET_COLLECTION_NAME , sl );
+
+    res = mongo_find_one( conn, ns, bson_empty(&empty), bson_empty( &empty ), &response );
+    bson_free( ns );
+
+    if( res != MONGO_OK )
+        return MONGO_ERROR;
+
+    if( out ){
+	    *out = response;
+    }
+    return MONGO_OK;
+
 }
