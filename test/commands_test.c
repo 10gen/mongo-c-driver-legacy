@@ -33,7 +33,7 @@ int main() {
 
     ASSERT( mongo_run_command( conn, db, cmd, out ) == MONGO_OK );
 
-    ASSERT( bson_find( it, out, "capped" ) == BSON_INT );
+    ASSERT( bson_find( it, out, "capped" ) == BSON_BOOL );
     ASSERT( bson_find( it, out, "max" ) == BSON_INT );
 
     mongo_cmd_drop_collection( conn, "test", col, NULL );
