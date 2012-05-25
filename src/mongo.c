@@ -555,6 +555,14 @@ mongo_replset_one_seed(bson *member,mongo *conn)
 	return;
 }
 
+static void 
+mongo_close_socket( mongo *conn)
+{
+    mongo_env_close_socket( conn->sock );
+    conn->sock = 0;
+    conn->connected = 0;
+}
+
 static void mongo_replset_check_seed( mongo *conn ) {
     bson out;
     bson member[1];
@@ -581,11 +589,10 @@ static void mongo_replset_check_seed( mongo *conn ) {
     }
 
     bson_destroy( &out );
-    mongo_env_close_socket( conn->sock );
-    conn->sock = 0;
-    conn->connected = 0;
+    mongo_close_socket(conn);
 
 }
+
 
 /* Find out whether the current connected node is master, and
  * verify that the node's replica set name matched the provided name
@@ -612,6 +619,7 @@ static int mongo_replset_check_host( mongo *conn ) {
             set_name = bson_iterator_string( &it );
             if( strcmp( set_name, conn->replset->name ) != 0 ) {
                 bson_destroy( &out );
+		mongo_close_socket(conn);
                 conn->err = MONGO_CONN_BAD_SET_NAME;
                 return MONGO_ERROR;
             }
@@ -623,7 +631,7 @@ static int mongo_replset_check_host( mongo *conn ) {
     if( ismaster ) {
         conn->replset->primary_connected = 1;
     } else if( !(conn->flags & MONGO_SLAVE_OK) ){
-        mongo_env_close_socket( conn->sock );
+        mongo_close_socket( conn );
     }
 
     return MONGO_OK;
@@ -672,9 +680,7 @@ static int mongo_replset_connect_primary(mongo *conn)
 
 			/* No primary, so close the connection. */
 			else {
-				mongo_env_close_socket( conn->sock );
-				conn->sock = 0;
-				conn->connected = 0;
+				mongo_close_socket( conn );
 			}
 		}
 		
@@ -855,10 +861,7 @@ MONGO_EXPORT void mongo_disconnect( mongo *conn ) {
         conn->replset->hosts = NULL;
     }
 
-    mongo_env_close_socket( conn->sock );
-
-    conn->sock = 0;
-    conn->connected = 0;
+    mongo_close_socket( conn );
 }
 
 MONGO_EXPORT void mongo_destroy( mongo *conn ) {
