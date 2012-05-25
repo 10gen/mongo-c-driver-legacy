@@ -36,7 +36,7 @@ int main() {
     ASSERT( mongo_run_command( conn, db, cmd, out ) == MONGO_OK );
 
 	if( mongo_get_server_version(version) != -1 ){
-		if( version[0] == '2' && version[2] == '1' )
+		if( version[0] == '2' && version[2] >= '1' )
     		ASSERT( bson_find( it, out, "capped" ) == BSON_BOOL );
 		else 
 			ASSERT( bson_find( it, out, "capped" ) == BSON_INT );
