@@ -715,6 +715,8 @@ static int mongo_replset_connect_measure(mongo *conn)
 				current = end - start;
 				if(current < best){
 					best = current;
+					if(conn->sock)
+						mongo_env_close_socket(conn->sock);
 					socket = conn->sock;
 					remember_primary_node(conn,node);
 					if(current < ACCEPTABLE_LATENCY)
