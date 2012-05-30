@@ -1,5 +1,4 @@
 /* mongo.c */
-
 /*    Copyright 2009-2012 10gen Inc.
  *
  *    Licensed under the Apache License, Version 2.0 (the "License");
@@ -518,7 +517,6 @@ mongo_replset_one_seed(bson *member,mongo *conn)
 
 	if( t == BSON_BOOL )
 		arbiterOnly = bson_iterator_bool(&it);
-	
 	/* skip arbiter */
 	if(arbiterOnly)
 		return;
@@ -526,7 +524,6 @@ mongo_replset_one_seed(bson *member,mongo *conn)
 	t = bson_find(&it,member,"host");
 	if( t == BSON_STRING )
 		host_string = bson_iterator_string(&it);
-
 	if(!host_string)
 		return;
 	
@@ -563,6 +560,12 @@ mongo_close_socket( mongo *conn)
     conn->connected = 0;
 }
 
+static int 
+string_empty(const char* str)
+{
+	return !str || strlen(str) == 0;
+}
+
 static void mongo_replset_check_seed( mongo *conn ) {
     bson out;
     bson member[1];
@@ -571,6 +574,12 @@ static void mongo_replset_check_seed( mongo *conn ) {
     bson_iterator it_sub;
 
     bson_init_size(&out,0);
+
+    if(!string_empty(conn->user_name) && !string_empty(conn->password) 
+	    && mongo_cmd_authenticate(conn,"admin",conn->user_name,conn->password) != MONGO_OK){
+	    conn->err = MONGO_UNAUTHORIZED;
+	    return;
+    }
 
     if( mongo_get_replset_config(conn,&out) == MONGO_OK ){
 
@@ -583,7 +592,6 @@ static void mongo_replset_check_seed( mongo *conn ) {
             while( bson_iterator_next( &it_sub ) ) {
 		bson_iterator_subobject( &it_sub ,member);
 		mongo_replset_one_seed(member,conn);
-		
             }
         }
     }
@@ -715,10 +723,11 @@ static int mongo_replset_connect_measure(mongo *conn)
 				current = end - start;
 				if(current < best){
 					best = current;
-					if(conn->sock)
-						mongo_env_close_socket(conn->sock);
+					if(socket)
+						mongo_env_close_socket(socket);
 					socket = conn->sock;
 					remember_primary_node(conn,node);
+					bson_printf("[%s:%d] selected",(const char*)&node->host,node->port);
 					if(current < ACCEPTABLE_LATENCY)
 						break;
 				}else{
@@ -878,14 +887,6 @@ MONGO_EXPORT void mongo_destroy( mongo *conn ) {
     }
 
     bson_free( conn->primary );
-    if(conn->preferred_tag){
-	    free(conn->preferred_tag);
-	    conn->preferred_tag = NULL;
-    }
-    if(conn->tag_name){
-	    free(conn->tag_name);
-	    conn->tag_name = NULL;
-    }
     mongo_clear_errors( conn );
 }
 
@@ -952,7 +953,6 @@ static int mongo_check_last_error( mongo *conn, const char *ns,
 
     res = mongo_find_one( conn, cmd_ns, write_concern->cmd, bson_empty( &fields ), &response );
     bson_free( cmd_ns );
-
     if( res != MONGO_OK )
         return MONGO_ERROR;
     else {
@@ -1422,6 +1422,7 @@ MONGO_EXPORT int mongo_find_one( mongo *conn, const char *ns, const bson *query,
                 bson_size( (bson *)&cursor->current ) );
             out->finished = 1;
         }
+	
         mongo_cursor_destroy( cursor );
         return MONGO_OK;
     } else {
@@ -1471,11 +1472,13 @@ MONGO_EXPORT int mongo_cursor_next( mongo_cursor *cursor ) {
     char *message_end;
 
     if( ! ( cursor->flags & MONGO_CURSOR_QUERY_SENT ) )
-        if( mongo_cursor_op_query( cursor ) != MONGO_OK )
-            return MONGO_ERROR;
+	    if( mongo_cursor_op_query( cursor ) != MONGO_OK ){
+		    return MONGO_ERROR;
+	    }
 
     if( !cursor->reply )
         return MONGO_ERROR;
+
 
     /* no data */
     if ( cursor->reply->fields.num == 0 ) {
@@ -1899,16 +1902,12 @@ MONGO_EXPORT int mongo_get_replset_config( mongo *conn,bson *out ) {
     int res;
 
     strncpy( ns, REPLSET_COLLECTION_NAME , sl );
-
     res = mongo_find_one( conn, ns, bson_empty(&empty), bson_empty( &empty ), &response );
     bson_free( ns );
-
-    if( res != MONGO_OK )
-        return MONGO_ERROR;
-
-    if( out ){
+    if(res != MONGO_OK)
+	    return res;
+    if(out)
 	    *out = response;
-    }
     return MONGO_OK;
 
 }

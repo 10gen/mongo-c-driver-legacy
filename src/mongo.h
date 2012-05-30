@@ -57,7 +57,8 @@ typedef enum mongo_error_t {
     MONGO_BSON_INVALID,      /**< BSON not valid for the specified op. */
     MONGO_BSON_NOT_FINISHED, /**< BSON object has not been finished. */
     MONGO_BSON_TOO_LARGE,    /**< BSON object exceeds max BSON size. */
-    MONGO_WRITE_CONCERN_INVALID /**< Supplied write concern object is invalid. */
+    MONGO_WRITE_CONCERN_INVALID, /**< Supplied write concern object is invalid. */
+    MONGO_UNAUTHORIZED /**< Unauthorized?*/
 } mongo_error_t;
 
 typedef enum mongo_cursor_error_t {
@@ -172,8 +173,10 @@ typedef struct mongo {
 	int max_bson_size;         /**< Largest BSON object allowed on this connection. */
 	bson_bool_t connected;     /**< Connection status. */
 	mongo_write_concern *write_concern; /**< The default write concern. */
-	char *preferred_tag;
-	char *tag_name;
+	const char *preferred_tag;       /**< DC-aware feature, the preferred tag value, caller responsible to free the memory*/
+	const char *tag_name;            /**< DC-aware feature, the tag name, caller responsible to free the memory*/
+	const char *user_name;           /**< User name used for authenticating admin db,caller responsible to free the memory*/
+	const char *password;            /**< Password used for authentitcating admin db,call responsible to free the memory*/
 
 	mongo_error_t err;          /**< Most recent driver error code. */
 	int errcode;                /**< Most recent errno or WSAGetLastError(). */
