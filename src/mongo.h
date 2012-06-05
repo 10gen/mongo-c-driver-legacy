@@ -26,8 +26,8 @@
 MONGO_EXTERN_C_START
 
 #define MONGO_MAJOR 0
-#define MONGO_MINOR 5
-#define MONGO_PATCH 2
+#define MONGO_MINOR 6
+#define MONGO_PATCH 0
 
 #define MONGO_OK 0
 #define MONGO_ERROR -1
@@ -645,7 +645,7 @@ MONGO_EXPORT int mongo_create_capped_collection( mongo *conn, const char *db,
  *
  * @return true if the index was created.
  */
-bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns,
+MONGO_EXPORT bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns,
     const char *field, int options, bson *out );
 
 /**

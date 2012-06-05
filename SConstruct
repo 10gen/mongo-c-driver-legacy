@@ -1,6 +1,9 @@
 # -*- mode: python; -*-
 
-VERSION = "0.5.2"
+MAJOR_VERSION = "0"
+MINOR_VERSION = "6"
+PATCH_VERSION = "0"
+VERSION = MAJOR_VERSION + "." + MINOR_VERSION + "." + PATCH_VERSION
 
 # --- options ----
 AddOption('--test-server',
@@ -48,6 +51,18 @@ AddOption('--standard-env',
           default=False,
           action='store_true',
           help='Set this option if you want to use basic, platform-agnostic networking.')
+
+AddOption('--install-library-path',
+          dest='install_library_path',
+          default='/usr/local/lib',
+          action='store',
+          help='The shared library install path. Defaults to /usr/local/lib.')
+
+AddOption('--install-include-path',
+          dest='install_include_path',
+          default='/usr/local/include',
+          action='store',
+          help='The header install path. Defaults to /usr/local/include.')
 
 import os, sys
 
@@ -163,20 +178,82 @@ bSharedObjs = env.SharedObject(bLibFiles)
 
 bsonEnv = env.Clone()
 if os.sys.platform == "linux2":
-    env.Append( SHLINKFLAGS = "-shared -Wl,-soname,libmongoc.so." + VERSION )
-    bsonEnv.Append( SHLINKFLAGS = "-shared -Wl,-soname,libbson.so." + VERSION )
+    env.Append( SHLINKFLAGS = "-shared -Wl,-soname,libmongoc.so." + MAJOR_VERSION + "." + MINOR_VERSION )
+    bsonEnv.Append( SHLINKFLAGS = "-shared -Wl,-soname,libbson.so." + MAJOR_VERSION + "." + MINOR_VERSION)
+    dynm = env.SharedLibrary( "mongoc" , mSharedObjs )
+    dynb = bsonEnv.SharedLibrary( "bson" , bSharedObjs )
+else:
+    dynm = env.SharedLibrary( "mongoc" , mSharedObjs )
+    dynb = env.SharedLibrary( "bson" , bSharedObjs )
 
-dynm = env.SharedLibrary( "mongoc" , mSharedObjs )
-dynb = bsonEnv.SharedLibrary( "bson" , bSharedObjs )
 # ---- Install ----
-prefix = "/usr/local"
+if os.sys.platform == "darwin":
+    shared_obj_suffix = "dylib"
+else:
+    shared_obj_suffix = "so"
 
-env.Alias("install", env.Install(os.path.join(prefix, "lib"), [dynm[0] , dynb[0] ]))
-env.Alias("install", env.Install(os.path.join(prefix, "include"), headers))
+install_library_path = env.GetOption("install_library_path")
+install_include_path = env.GetOption("install_include_path")
+def remove_without_exception(filename):
+    try:
+        os.remove(filename)
+    except:
+        print "Could not find " + filename + ". Skipping removal."
 
-env.Command("uninstall", None, Delete(FindInstalledFiles()))
+def makedirs_without_exception(path):
+  try:
+    os.makedirs(path)
+  except:
+    print path + ": already exists, skipping"
+
+mongoc_target = os.path.join(install_library_path, "libmongoc." + shared_obj_suffix)
+mongoc_major_target = mongoc_target + "." + MAJOR_VERSION
+mongoc_minor_target = mongoc_major_target + "." + MINOR_VERSION
+mongoc_patch_target = mongoc_minor_target + "." + PATCH_VERSION
+
+bson_target = os.path.join(install_library_path, "libbson." + shared_obj_suffix)
+bson_major_target = bson_target + "." + MAJOR_VERSION
+bson_minor_target = bson_major_target + "." + MINOR_VERSION
+bson_patch_target = bson_minor_target + "." + PATCH_VERSION
+
+def uninstall_shared_libraries(target=None, source=None, env=None):
+  remove_without_exception(mongoc_major_target)
+  remove_without_exception(mongoc_minor_target)
+  remove_without_exception(mongoc_patch_target)
+  remove_without_exception(mongoc_target)
+
+  remove_without_exception(bson_major_target)
+  remove_without_exception(bson_minor_target)
+  remove_without_exception(bson_patch_target)
+  remove_without_exception(bson_target)
+
+def install_shared_libraries(target=None, source=None, env=None):
+  import shutil
+  uninstall_shared_libraries()
+
+  makedirs_without_exception(install_library_path)
+  shutil.copy("libmongoc." + shared_obj_suffix, mongoc_patch_target)
+  os.symlink(mongoc_patch_target, mongoc_minor_target)
+  os.symlink(mongoc_minor_target, mongoc_target)
+
+  shutil.copy("libbson." + shared_obj_suffix, bson_patch_target)
+  os.symlink(bson_patch_target, bson_minor_target)
+  os.symlink(bson_minor_target, bson_target)
+
+def install_headers(target=None, source=None, env=None):
+  import shutil
+  # -- uninstall headers here?
+  
+  makedirs_without_exception(install_include_path)
+  for hdr in headers:
+    shutil.copy(hdr, install_include_path)
+
+env.Alias("install", [], [install_shared_libraries, install_headers] )
+
+env.Command("uninstall", [], uninstall_shared_libraries)
 
 env.Default( env.Alias( "sharedlib" , [ dynm[0] , dynb[0] ] ) )
+env.AlwaysBuild("install")
 
 # ---- Benchmarking ----
 benchmarkEnv = env.Clone()
