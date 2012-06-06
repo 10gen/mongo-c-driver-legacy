@@ -854,7 +854,7 @@ MONGO_EXPORT int mongo_insert( mongo *conn, const char *ns,
 }
 
 MONGO_EXPORT int mongo_insert_batch( mongo *conn, const char *ns,
-    const bson **bsons, int count, mongo_write_concern *custom_write_concern,
+    bson **bsons, int count, mongo_write_concern *custom_write_concern,
     int flags ) {
 
     mongo_message *mm;
