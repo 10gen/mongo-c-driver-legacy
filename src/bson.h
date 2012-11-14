@@ -536,9 +536,9 @@ MONGO_EXPORT void bson_oid_gen( bson_oid_t *oid );
  * Set a function to be used to generate the second four bytes
  * of an object id.
  *
- * @param func a pointer to a function that returns an int.
+ * @param func a pointer to a function that will fill the fuzz.
  */
-MONGO_EXPORT void bson_set_oid_fuzz( int ( *func )( void ) );
+MONGO_EXPORT void bson_set_oid_fuzz( void ( *func )(char *) );
 
 /**
  * Set a function to be used to generate the incrementing part

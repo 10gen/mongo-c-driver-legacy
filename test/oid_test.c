@@ -13,8 +13,8 @@ int increment( void ) {
     return i;
 }
 
-int fuzz( void ) {
-    return 50000;
+void fuzz(char f[5]) {
+    memcpy(f, "hostid_and_pid", 5);
 }
 
 /* Test custom increment and fuzz functions. */
@@ -22,14 +22,17 @@ int main() {
 
     bson_oid_t o;
     int res;
+    char bigendian_i[4] = {0};
 
     bson_set_oid_inc( increment );
     bson_set_oid_fuzz( fuzz );
 
     bson_oid_gen( &o );
-    bson_big_endian32( &res, &( o.ints[2] ) );
 
-    ASSERT( o.ints[1] == 50000 );
+    memcpy(bigendian_i + 1, o.bytes + 9, 3);
+    bson_big_endian32(&res, bigendian_i);
+
+    ASSERT( !strncmp(o.bytes + 4, "hostid_and_pid", 5)); 
     ASSERT( res == 1001 );
 
     return 0;

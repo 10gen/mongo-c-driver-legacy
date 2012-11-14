@@ -24,6 +24,16 @@
 #include "bson.h"
 #include "encoding.h"
 
+#include "md5.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <winsock2.h>
+#define getpid() GetCurrentProcessId()
+#else
+#include <unistd.h>
+#endif
+
 const int initialBufferSize = 128;
 
 /* only need one of these */
@@ -45,7 +55,7 @@ static int _bson_errprintf( const char *, ... );
 bson_printf_func bson_errprintf = _bson_errprintf;
 
 /* ObjectId fuzz functions. */
-static int ( *oid_fuzz_func )( void ) = NULL;
+static void ( *oid_fuzz_func )( char * ) = NULL;
 static int ( *oid_inc_func )( void )  = NULL;
 
 /* ----------------------------
@@ -143,7 +153,7 @@ MONGO_EXPORT void bson_oid_to_string( const bson_oid_t *oid, char *str ) {
     str[24] = '\0';
 }
 
-MONGO_EXPORT void bson_set_oid_fuzz( int ( *func )( void ) ) {
+MONGO_EXPORT void bson_set_oid_fuzz( void ( *func )( char * ) ) {
     oid_fuzz_func = func;
 }
 
@@ -153,27 +163,47 @@ MONGO_EXPORT void bson_set_oid_inc( int ( *func )( void ) ) {
 
 MONGO_EXPORT void bson_oid_gen( bson_oid_t *oid ) {
     static int incr = 0;
-    static int fuzz = 0;
+    static char fuzz[6] = {0}; /* fuzz is made of the first three bytes of the (md5) hash of the machine host name and 2 bytes of the process id, the last byte is flag */
     int i;
-    int t = time( NULL );
+    int t;
+
+    char bigendian_i[4];
+
+    t = time( NULL );
 
     if( oid_inc_func )
         i = oid_inc_func();
     else
-        i = incr++;
+        i = (incr++) % 16777216;
 
-    if ( !fuzz ) {
+    if ( !fuzz[5] ) {
         if ( oid_fuzz_func )
-            fuzz = oid_fuzz_func();
+            oid_fuzz_func(fuzz);
         else {
-            srand( t );
-            fuzz = rand();
+
+            unsigned short pid;
+            char hostname[256];
+
+            pid = (unsigned short)getpid();
+            gethostname(hostname, sizeof(hostname));
+
+            mongo_md5_state_t st;
+            mongo_md5_byte_t digest[16];
+            mongo_md5_init(&st);
+            mongo_md5_append(&st, (mongo_md5_byte_t *)hostname, strlen(hostname));
+            mongo_md5_finish(&st, digest);
+
+            memcpy(fuzz, digest, 3);
+            memcpy(fuzz + 3, &pid, 2);
         }
+        fuzz[5] = 1;
     }
 
+    bson_big_endian32(bigendian_i, &i);
+
     bson_big_endian32( &oid->ints[0], &t );
-    oid->ints[1] = fuzz;
-    bson_big_endian32( &oid->ints[2], &i );
+    memcpy(oid->bytes + 4, fuzz, 5);
+    memcpy(oid->bytes + 9, bigendian_i + 1, 3);
 }
 
 MONGO_EXPORT time_t bson_oid_generated_time( bson_oid_t *oid ) {
