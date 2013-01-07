@@ -125,21 +125,39 @@ typedef enum {
 
 typedef int bson_bool_t;
 
-typedef struct {
+typedef struct {  
+#ifdef MONGO_MEMORY_PROTECTION
+    int mongo_sig; /** MONGO_SIGNATURE to validate object for memory corruption */
+#endif
     const char *cur;
     bson_bool_t first;
 } bson_iterator;
 
+#ifdef MONGO_MEMORY_PROTECTION
+  #define INIT_ITERATOR {MONGO_SIGNATURE, NULL, 0}
+#else
+  #define INIT_ITERATOR {NULL, 0}
+#endif
+
 typedef struct {
+#ifdef MONGO_MEMORY_PROTECTION
+    int mongo_sig; /** MONGO_SIGNATURE to validate object for memory corruption */
+#endif
     char *data;    /**< Pointer to a block of data in this BSON object. */
     char *cur;     /**< Pointer to the current position. */
     int dataSize;  /**< The number of bytes allocated to char *data. */
     bson_bool_t finished; /**< When finished, the BSON object can no longer be modified. */
-    int stack[32];        /**< A stack used to keep track of nested BSON elements. */
+    size_t stack[32];        /**< A stack used to keep track of nested BSON elements. */
     int stackPos;         /**< Index of current stack position. */
     int err; /**< Bitfield representing errors or warnings on this buffer */
     char *errstr; /**< A string representation of the most recent error or warning. */
 } bson;
+
+#ifdef MONGO_MEMORY_PROTECTION
+  #define INIT_BSON {MONGO_SIGNATURE, NULL, NULL}
+#else
+  #define INIT_BSON {NULL, NULL}
+#endif
 
 #pragma pack(1)
 typedef union {
@@ -154,6 +172,21 @@ typedef struct {
     int i; /* increment */
     int t; /* time in seconds */
 } bson_timestamp_t;
+
+#define MONGO_SIGNATURE 0xFFEEFFEE
+#define MONGO_SIGNATURE_READY_TO_DISPOSE 0xFFAAFFAA
+
+static const char* SIG_MISMATCH_STR = "Object MONGO_SIGNATURE mismatch. This is likely caused by memory corruption using an uninitialized object or a destroyed object";
+
+#ifdef MONGO_MEMORY_PROTECTION
+  #define check_mongo_object(obj) bson_fatal_msg((obj) && *((int*)(obj)) == MONGO_SIGNATURE, SIG_MISMATCH_STR)
+  #define check_destroyed_mongo_object(obj) bson_fatal_msg((obj) && (*((int*)(obj)) == MONGO_SIGNATURE || *((int*)(obj)) == MONGO_SIGNATURE_READY_TO_DISPOSE), SIG_MISMATCH_STR)
+  #define ASSIGN_SIGNATURE(obj, sig) (obj)->mongo_sig = sig
+#else
+  #define check_mongo_object(obj) 
+  #define check_destroyed_mongo_object(obj) 
+  #define ASSIGN_SIGNATURE(obj, sig)
+#endif
 
 /* ----------------------------
    READING
@@ -170,7 +203,7 @@ MONGO_EXPORT void  bson_dispose(bson* b);
  * @return the size.
  */
 MONGO_EXPORT int bson_size( const bson *b );
-MONGO_EXPORT int bson_buffer_size( const bson *b );
+MONGO_EXPORT size_t bson_buffer_size( const bson *b );
 
 /**
  * Print a string representation of a BSON object.

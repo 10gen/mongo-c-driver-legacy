@@ -169,7 +169,7 @@ Here's how we save our person object to the database's "people" collection:
 
     mongo_insert( conn, "tutorial.people", b );
 
-The first parameter to ``mongo_insert`` is the pointer to the ``mongo``
+The first parameter to ``mongo_insert`` is the pointer to the ``mongo_connection``
 object. The second parameter is the namespace, which include the database name, followed
 by a dot followed by the collection name. Thus, ``tutorial`` is the database and ``people``
 is the collection name. The third parameter is a pointer to the ``bson`` object that
@@ -182,7 +182,7 @@ We can do batch inserts as well:
 
 .. code-block:: c
 
-    static void tutorial_insert_batch( mongo *conn ) {
+    static void tutorial_insert_batch( mongo_connection *conn ) {
       bson *p, **ps;
       char *names[4];
       int ages[] = { 29, 24, 24, 32 };
@@ -216,7 +216,7 @@ Let's now fetch all objects from the ``persons`` collection, and display them.
 
 .. code-block:: c
 
-    static void tutorial_empty_query( mongo *conn) {
+    static void tutorial_empty_query( mongo_connection *conn) {
       mongo_cursor cursor[1];
       mongo_cursor_init( cursor, conn, "tutorial.persons" );
 
@@ -239,12 +239,12 @@ whose age is 24:
 
 .. code-block:: c
 
-    static void tutorial_simple_query( mongo *conn ) {
+    static void tutorial_simple_query( mongo_connection *conn ) {
       bson query[1];
       mongo_cursor cursor[1];
 
       bson_init( query );
-      bson_append_int( query, "age", 24 );
+      bson_append_int( query_buf, "age", 24 );
       bson_finish( query );
 
       mongo_cursor_init( cursor, conn, "tutorial.persons" );
@@ -330,7 +330,7 @@ is equivalent to the following C function:
 
 .. code-block:: c
 
-    static void tutorial_update( mongo *conn ) {
+    static void tutorial_update( mongo_connection *conn ) {
       bson cond[1], op[1];
 
       bson_init( cond );
@@ -366,7 +366,7 @@ the second is a compound index on ``name`` and ``age``.
 
 .. code-block:: c
 
-    static void tutorial_index( mongo *conn ) {
+    static void tutorial_index( mongo_connection *conn ) {
       bson key[1];
 
       bson_init( key );

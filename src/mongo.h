@@ -144,6 +144,9 @@ typedef struct mongo_host_port {
 } mongo_host_port;
 
 typedef struct mongo_write_concern {
+#ifdef MONGO_MEMORY_PROTECTION
+    int mongo_sig;    /** MONGO_SIGNATURE to validate object for memory corruption */
+#endif
     int w;            /**< Number of total replica write copies to complete including the primary. */
     int wtimeout;     /**< Number of milliseconds before replication timeout. */
     int j;            /**< If non-zero, block until the journal sync. */
@@ -161,9 +164,12 @@ typedef struct {
 } mongo_replica_set;
 
 typedef struct mongo {
+#ifdef MONGO_MEMORY_PROTECTION
+    int mongo_sig;    /** MONGO_SIGNATURE to validate object for memory corruption */
+#endif
     mongo_host_port *primary;  /**< Primary connection info. */
     mongo_replica_set *replica_set;    /**< replica_set object if connected to a replica set. */
-    int sock;                  /**< Socket file descriptor. */
+    size_t sock;                  /**< Socket file descriptor. */
     int flags;                 /**< Flags on this connection object. */
     int conn_timeout_ms;       /**< Connection timeout in milliseconds. */
     int op_timeout_ms;         /**< Read and write timeout in milliseconds. */
@@ -179,6 +185,9 @@ typedef struct mongo {
 } mongo;
 
 typedef struct {
+#ifdef MONGO_MEMORY_PROTECTION
+    int mongo_sig;    /** MONGO_SIGNATURE to validate object for memory corruption */
+#endif
     mongo_reply *reply;  /**< reply is owned by cursor */
     mongo *conn;       /**< connection is *not* owned by cursor */
     const char *ns;    /**< owned by cursor */
@@ -192,6 +201,12 @@ typedef struct {
     int limit;         /**< Bitfield containing cursor options. */
     int skip;          /**< Bitfield containing cursor options. */
 } mongo_cursor;
+
+#ifdef MONGO_MEMORY_PROTECTION
+  #define INIT_MONGO_CURSOR {MONGO_SIGNATURE}
+#else
+  #define INIT_MONGO_CURSOR {NULL}
+#endif
 
 /*********************************************************************
 Connection API
@@ -842,11 +857,11 @@ MONGO_EXPORT void mongo_dispose(mongo* conn);
 MONGO_EXPORT int mongo_get_err(mongo* conn);
 MONGO_EXPORT int mongo_is_connected(mongo* conn);
 MONGO_EXPORT int mongo_get_op_timeout(mongo* conn);
-MONGO_EXPORT const char* mongo_get_primary(mongo* conn);
-MONGO_EXPORT int mongo_get_socket(mongo* conn) ;
+MONGO_EXPORT const char* mongo_get_primary(mongo* conn); /* Memory returned by this function must be freed */
+MONGO_EXPORT size_t mongo_get_socket(mongo* conn) ;
 MONGO_EXPORT int mongo_get_host_count(mongo* conn);
-MONGO_EXPORT const char* mongo_get_host(mongo* conn, int i);
-MONGO_EXPORT mongo_cursor* mongo_cursor_create( void );
+MONGO_EXPORT const char* mongo_get_host(mongo* conn, int i); /* Memory returned by this function must be freed */
+MONGO_EXPORT mongo_cursor* mongo_cursor_create();
 MONGO_EXPORT void mongo_cursor_dispose(mongo_cursor* cursor);
 MONGO_EXPORT int  mongo_get_server_err(mongo* conn);
 MONGO_EXPORT const char*  mongo_get_server_err_string(mongo* conn);

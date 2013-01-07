@@ -1,0 +1,9 @@
+/ipch/
+/*.opensdf
+/*.sdf
+/*.suo
+/*.aps
+/*.sfb
+/ReadMe.txt
+/Release/
+/error.log

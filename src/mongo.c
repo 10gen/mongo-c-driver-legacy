@@ -22,46 +22,55 @@
 #include <string.h>
 
 MONGO_EXPORT mongo* mongo_create( void ) {
-    return (mongo*)bson_malloc(sizeof(mongo));
+    mongo* Mongo = (mongo*)bson_malloc(sizeof(mongo));
+    ASSIGN_SIGNATURE(Mongo, MONGO_SIGNATURE);    
+    return Mongo;
 }
 
 
 MONGO_EXPORT void mongo_dispose(mongo* conn) {
-    bson_free(conn);
+  check_destroyed_mongo_object(conn);
+  ASSIGN_SIGNATURE(conn, 0);  
+  bson_free(conn);
 }
 
 MONGO_EXPORT int mongo_get_err(mongo* conn) {
-    return conn->err;
+  check_mongo_object(conn);
+  return conn->err;
 }
 
 
 MONGO_EXPORT int mongo_is_connected(mongo* conn) {
-    return conn->connected != 0;
+  check_mongo_object(conn);
+  return conn->connected != 0;
 }
 
 
 MONGO_EXPORT int mongo_get_op_timeout(mongo* conn) {
-    return conn->op_timeout_ms;
+  check_mongo_object(conn);
+  return conn->op_timeout_ms;
 }
 
 
-static const char* _get_host_port(mongo_host_port* hp) {
-    static char _hp[sizeof(hp->host)+12];
+static const char* _get_host_port(mongo_host_port* hp) {    
+    char *_hp = (char*) bson_malloc(sizeof(hp->host)+12);
     bson_sprintf(_hp, "%s:%d", hp->host, hp->port);
     return _hp;
 }
 
-
+/* Memory returned by this function must be freed */
 MONGO_EXPORT const char* mongo_get_primary(mongo* conn) {
-    mongo* conn_ = (mongo*)conn;
-    if( !(conn_->connected) || (conn_->primary->host[0] == '\0') )
-        return NULL;
-    return _get_host_port(conn_->primary);
+    mongo* conn_ = (mongo*)conn;    
+    check_mongo_object(conn);
+    if (conn_->primary->host[0])
+      return _get_host_port(conn_->primary); 
+    else return NULL;
 }
 
 
-MONGO_EXPORT int mongo_get_socket(mongo* conn) {
+MONGO_EXPORT size_t mongo_get_socket(mongo* conn) {
     mongo* conn_ = (mongo*)conn;
+    check_mongo_object(conn);
     return conn_->sock;
 }
 
@@ -70,6 +79,7 @@ MONGO_EXPORT int mongo_get_host_count(mongo* conn) {
     mongo_replica_set* r = conn->replica_set;
     mongo_host_port* hp;
     int count = 0;
+    check_mongo_object(conn);
     if (!r) return 0;
     for (hp = r->hosts; hp; hp = hp->next)
         ++count;
@@ -77,10 +87,12 @@ MONGO_EXPORT int mongo_get_host_count(mongo* conn) {
 }
 
 
+/* Memory returned by this function must be freed */
 MONGO_EXPORT const char* mongo_get_host(mongo* conn, int i) {
     mongo_replica_set* r = conn->replica_set;
     mongo_host_port* hp;
     int count = 0;
+    check_mongo_object(conn);
     if (!r) return 0;
     for (hp = r->hosts; hp; hp = hp->next) {
         if (count == i)
@@ -92,28 +104,35 @@ MONGO_EXPORT const char* mongo_get_host(mongo* conn, int i) {
 
 
 MONGO_EXPORT mongo_cursor* mongo_cursor_create( void ) {
-    return (mongo_cursor*)bson_malloc(sizeof(mongo_cursor));
+    mongo_cursor* MongoCursor = (mongo_cursor*)bson_malloc(sizeof(mongo_cursor));
+    ASSIGN_SIGNATURE(MongoCursor, MONGO_SIGNATURE);
+    return MongoCursor; 
 }
 
 
 MONGO_EXPORT void mongo_cursor_dispose(mongo_cursor* cursor) {
-    bson_free(cursor);
+  check_destroyed_mongo_object( cursor );
+  ASSIGN_SIGNATURE(cursor, 0);
+  bson_free( cursor );
 }
 
 
 MONGO_EXPORT int  mongo_get_server_err(mongo* conn) {
-    return conn->lasterrcode;
+  check_mongo_object(conn);
+  return conn->lasterrcode;
 }
 
 
 MONGO_EXPORT const char*  mongo_get_server_err_string(mongo* conn) {
-    return conn->lasterrstr;
+  check_mongo_object(conn);
+  return conn->lasterrstr;
 }
 
 MONGO_EXPORT void __mongo_set_error( mongo *conn, mongo_error_t err, const char *str,
                                      int errcode ) {
-    int errstr_size, str_size;
+    size_t errstr_size, str_size;
 
+    check_mongo_object(conn);
     conn->err = err;
     conn->errcode = errcode;
 
@@ -121,16 +140,17 @@ MONGO_EXPORT void __mongo_set_error( mongo *conn, mongo_error_t err, const char 
         str_size = strlen( str ) + 1;
         errstr_size = str_size > MONGO_ERR_LEN ? MONGO_ERR_LEN : str_size;
         memcpy( conn->errstr, str, errstr_size );
-        conn->errstr[errstr_size-1] = '\0';
+        conn->errstr[errstr_size] = '\0';
     }
 }
 
 MONGO_EXPORT void mongo_clear_errors( mongo *conn ) {
-    conn->err = 0;
-    conn->errcode = 0;
-    conn->lasterrcode = 0;
-    memset( conn->errstr, 0, MONGO_ERR_LEN );
-    memset( conn->lasterrstr, 0, MONGO_ERR_LEN );
+  check_mongo_object(conn);
+  conn->err = MONGO_CONN_SUCCESS;
+  conn->errcode = 0;
+  conn->lasterrcode = 0;
+  memset( conn->errstr, 0, MONGO_ERR_LEN );
+  memset( conn->lasterrstr, 0, MONGO_ERR_LEN );
 }
 
 /* Note: this function returns a char* which must be freed. */
@@ -157,6 +177,8 @@ MONGO_EXPORT int mongo_validate_ns( mongo *conn, const char *ns ) {
     char *collection_name = NULL;
     char errmsg[64];
     int ns_len = 0;
+
+    check_mongo_object(conn);
 
     /* If the first character is a '.', fail. */
     if( *ns == '.' ) {
@@ -257,6 +279,7 @@ static void mongo_set_last_error( mongo *conn, bson_iterator *it, bson *obj ) {
     int result_len = bson_iterator_string_len( it );
     const char *result_string = bson_iterator_string( it );
     int len = result_len < MONGO_ERR_LEN ? result_len : MONGO_ERR_LEN;
+    check_mongo_object(conn);
     memcpy( conn->lasterrstr, result_string, len );
 
     if( bson_find( it, obj, "code" ) != BSON_NULL )
@@ -284,6 +307,7 @@ static mongo_message *mongo_message_create( int len , int id , int responseTo , 
 static int mongo_message_send( mongo *conn, mongo_message *mm ) {
     mongo_header head; /* little endian */
     int res;
+    check_mongo_object(conn);
     bson_little_endian32( &head.len, &mm->head.len );
     bson_little_endian32( &head.id, &mm->head.id );
     bson_little_endian32( &head.responseTo, &mm->head.responseTo );
@@ -312,6 +336,7 @@ static int mongo_read_response( mongo *conn, mongo_reply **reply ) {
     unsigned int len;
     int res;
 
+    check_mongo_object(conn);
     mongo_env_read_socket( conn, &head, sizeof( head ) );
     mongo_env_read_socket( conn, &fields, sizeof( fields ) );
 
@@ -362,12 +387,12 @@ static char *mongo_data_append64( char *start , const void *data ) {
 /* Connection API */
 
 static int mongo_check_is_master( mongo *conn ) {
-    bson out;
-    bson_iterator it;
+    bson out = INIT_BSON;
+    bson_iterator it = INIT_ITERATOR;
     bson_bool_t ismaster = 0;
     int max_bson_size = MONGO_DEFAULT_MAX_BSON_SIZE;
 
-    out.data = NULL;
+    check_mongo_object(conn);
 
     if ( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
         if( bson_find( &it, &out, "ismaster" ) )
@@ -397,32 +422,44 @@ MONGO_EXPORT void mongo_init_sockets( void ) {
 
 /* WC1 is completely static */
 static char WC1_data[] = {23,0,0,0,16,103,101,116,108,97,115,116,101,114,114,111,114,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0};
-static bson WC1_cmd = {
-    WC1_data, WC1_data, 128, 1, {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 0, 0, ""
-};
-static mongo_write_concern WC1 = { 1, 0, 0, 0, 0, &WC1_cmd }; /* w = 1 */
+
+#ifdef MONGO_MEMORY_PROTECTION
+  static bson WC1_cmd = {
+      MONGO_SIGNATURE, WC1_data, WC1_data, 128, 1, {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 0, 0, ""
+  };
+  static mongo_write_concern WC1 = { MONGO_SIGNATURE, 1, 0, 0, 0, 0, &WC1_cmd }; /* w = 1 */
+#else
+  static bson WC1_cmd = {
+        WC1_data, WC1_data, 128, 1, {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}, 0, 0, ""
+  };
+  static mongo_write_concern WC1 = { 1, 0, 0, 0, 0, &WC1_cmd }; /* w = 1 */
+#endif
+
 
 MONGO_EXPORT void mongo_init( mongo *conn ) {
-    memset( conn, 0, sizeof( mongo ) );
-    conn->max_bson_size = MONGO_DEFAULT_MAX_BSON_SIZE;
-    mongo_set_write_concern( conn, &WC1 );
+  check_mongo_object(conn);
+  memset( conn, 0, sizeof( mongo ) );
+  ASSIGN_SIGNATURE(conn, MONGO_SIGNATURE);  
+  conn->max_bson_size = MONGO_DEFAULT_MAX_BSON_SIZE;
 }
 
+
 MONGO_EXPORT int mongo_client( mongo *conn , const char *host, int port ) {
-    mongo_init( conn );
+  check_mongo_object(conn);
+  mongo_init( conn );
 
-    conn->primary = bson_malloc( sizeof( mongo_host_port ) );
-    strncpy( conn->primary->host, host, strlen( host ) + 1 );
-    conn->primary->port = port;
-    conn->primary->next = NULL;
+  conn->primary = (mongo_host_port*) bson_malloc( sizeof( mongo_host_port ) );
+  strncpy( conn->primary->host, host, strlen( host ) + 1 );
+  conn->primary->port = port;
+  conn->primary->next = NULL;
 
-    if( mongo_env_socket_connect( conn, host, port ) != MONGO_OK )
-        return MONGO_ERROR;
+  if( mongo_env_socket_connect( conn, host, port ) != MONGO_OK )
+      return MONGO_ERROR;
 
-    if( mongo_check_is_master( conn ) != MONGO_OK )
-        return MONGO_ERROR;
-    else
-        return MONGO_OK;
+  if( mongo_check_is_master( conn ) != MONGO_OK )
+      return MONGO_ERROR;
+  else
+      return MONGO_OK;
 }
 
 MONGO_EXPORT int mongo_connect( mongo *conn , const char *host, int port ) {
@@ -434,16 +471,17 @@ MONGO_EXPORT int mongo_connect( mongo *conn , const char *host, int port ) {
 }
 
 MONGO_EXPORT void mongo_replica_set_init( mongo *conn, const char *name ) {
+    check_mongo_object(conn);
     mongo_init( conn );
 
-    conn->replica_set = bson_malloc( sizeof( mongo_replica_set ) );
+    conn->replica_set = (mongo_replica_set*) bson_malloc( sizeof( mongo_replica_set ) );
     conn->replica_set->primary_connected = 0;
     conn->replica_set->seeds = NULL;
     conn->replica_set->hosts = NULL;
-    conn->replica_set->name = ( char * )bson_malloc( strlen( name ) + 1 );
+    conn->replica_set->name = ( char * )bson_malloc( (int)strlen( name ) + 1 );
     memcpy( conn->replica_set->name, name, strlen( name ) + 1  );
 
-    conn->primary = bson_malloc( sizeof( mongo_host_port ) );
+    conn->primary = (mongo_host_port*) bson_malloc( sizeof( mongo_host_port ) );
     conn->primary->host[0] = '\0';
     conn->primary->next = NULL;
 }
@@ -454,7 +492,7 @@ MONGO_EXPORT void mongo_replset_init( mongo *conn, const char *name ) {
 }
 
 static void mongo_replica_set_add_node( mongo_host_port **list, const char *host, int port ) {
-    mongo_host_port *host_port = bson_malloc( sizeof( mongo_host_port ) );
+    mongo_host_port *host_port = (mongo_host_port*) bson_malloc( sizeof( mongo_host_port ) );
     host_port->port = port;
     host_port->next = NULL;
     strncpy( host_port->host, host, strlen( host ) + 1 );
@@ -487,8 +525,9 @@ MONGO_EXPORT void mongo_replica_set_add_seed( mongo *conn, const char *host, int
 }
 
 MONGO_EXPORT void mongo_replset_add_seed( mongo *conn, const char *host, int port ) {
-    bson_errprintf("WARNING: mongo_replset_add_seed() is deprecated, please use mongo_replica_set_add_seed()\n");
-    mongo_replica_set_add_node( &conn->replica_set->seeds, host, port );
+  check_mongo_object(conn);
+  bson_errprintf("WARNING: mongo_replset_add_seed() is deprecated, please use mongo_replica_set_add_seed()\n");
+  mongo_replica_set_add_node( &conn->replica_set->seeds, host, port );
 }
 
 void mongo_parse_host( const char *host_string, mongo_host_port *host_port ) {
@@ -496,6 +535,8 @@ void mongo_parse_host( const char *host_string, mongo_host_port *host_port ) {
     len = split = idx = 0;
 
     /* Split the host_port string at the ':' */
+    #pragma warning(push)
+    #pragma warning(disable:4127)
     while( 1 ) {
         if( *( host_string + len ) == '\0' )
             break;
@@ -504,6 +545,7 @@ void mongo_parse_host( const char *host_string, mongo_host_port *host_port ) {
 
         len++;
     }
+    #pragma warning(pop)
 
     /* If 'split' is set, we know the that port exists;
      * Otherwise, we set the default port. */
@@ -517,17 +559,15 @@ void mongo_parse_host( const char *host_string, mongo_host_port *host_port ) {
 }
 
 static void mongo_replica_set_check_seed( mongo *conn ) {
-    bson out;
-    bson hosts;
+    bson out = INIT_BSON;
+    bson hosts = INIT_BSON;
     const char *data;
-    bson_iterator it;
-    bson_iterator it_sub;
+    bson_iterator it = INIT_ITERATOR;
+    bson_iterator it_sub = INIT_ITERATOR;
     const char *host_string;
     mongo_host_port *host_port = NULL;
 
-    out.data = NULL;
-
-    hosts.data = NULL;
+    check_mongo_object(conn);
 
     if( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
 
@@ -540,7 +580,7 @@ static void mongo_replica_set_check_seed( mongo *conn ) {
             while( bson_iterator_next( &it_sub ) ) {
                 host_string = bson_iterator_string( &it_sub );
 
-                host_port = bson_malloc( sizeof( mongo_host_port ) );
+                host_port = (mongo_host_port *)bson_malloc( sizeof( mongo_host_port ) );
 
                 if( host_port ) {
                     mongo_parse_host( host_string, host_port );
@@ -567,13 +607,13 @@ static void mongo_replica_set_check_seed( mongo *conn ) {
  */
 static int mongo_replica_set_check_host( mongo *conn ) {
 
-    bson out;
-    bson_iterator it;
+    bson out = INIT_BSON;
+    bson_iterator it = INIT_ITERATOR;
     bson_bool_t ismaster = 0;
     const char *set_name;
     int max_bson_size = MONGO_DEFAULT_MAX_BSON_SIZE;
 
-    out.data = NULL;
+    check_mongo_object(conn);
 
     if ( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
         if( bson_find( &it, &out, "ismaster" ) )
@@ -610,6 +650,7 @@ MONGO_EXPORT int mongo_replica_set_client( mongo *conn ) {
     int res = 0;
     mongo_host_port *node;
 
+    check_mongo_object(conn);
     conn->sock = 0;
     conn->connected = 0;
 
@@ -676,15 +717,17 @@ MONGO_EXPORT int mongo_replset_connect( mongo *conn ) {
 }
 
 MONGO_EXPORT int mongo_set_op_timeout( mongo *conn, int millis ) {
-    conn->op_timeout_ms = millis;
-    if( conn->sock && conn->connected )
-        mongo_env_set_socket_op_timeout( conn, millis );
+  check_mongo_object(conn);
+  conn->op_timeout_ms = millis;
+  if( conn->sock && conn->connected )
+      mongo_env_set_socket_op_timeout( conn, millis );
 
-    return MONGO_OK;
+  return MONGO_OK;
 }
 
 MONGO_EXPORT int mongo_reconnect( mongo *conn ) {
     int res;
+    check_mongo_object(conn);
     mongo_disconnect( conn );
 
     if( conn->replica_set ) {
@@ -699,6 +742,7 @@ MONGO_EXPORT int mongo_reconnect( mongo *conn ) {
 }
 
 MONGO_EXPORT int mongo_check_connection( mongo *conn ) {
+    check_mongo_object(conn);
     if( ! conn->connected )
         return MONGO_ERROR;
 
@@ -709,6 +753,7 @@ MONGO_EXPORT int mongo_check_connection( mongo *conn ) {
 }
 
 MONGO_EXPORT void mongo_disconnect( mongo *conn ) {
+    check_mongo_object(conn);
     if( ! conn->connected )
         return;
 
@@ -725,24 +770,35 @@ MONGO_EXPORT void mongo_disconnect( mongo *conn ) {
 }
 
 MONGO_EXPORT void mongo_destroy( mongo *conn ) {
+    check_mongo_object( conn );
     mongo_disconnect( conn );
 
     if( conn->replica_set ) {
         mongo_replica_set_free_list( &conn->replica_set->seeds );
         mongo_replica_set_free_list( &conn->replica_set->hosts );
-        bson_free( conn->replica_set->name );
+        if ( conn->replica_set->name ) {
+          bson_free( conn->replica_set->name );
+          conn->replica_set->name = NULL;
+        }        
         bson_free( conn->replica_set );
         conn->replica_set = NULL;
     }
 
-    bson_free( conn->primary );
+    if( conn->primary ) {
+      bson_free( conn->primary );
+      conn->primary = NULL;
+    }
 
     mongo_clear_errors( conn );
+    ASSIGN_SIGNATURE(conn, MONGO_SIGNATURE_READY_TO_DISPOSE);    
 }
 
 /* Determine whether this BSON object is valid for the given operation.  */
 static int mongo_bson_valid( mongo *conn, const bson *bson, int write ) {
     int size;
+
+    check_mongo_object(conn);
+    check_mongo_object((void*)bson); 
 
     if( ! bson->finished ) {
         conn->err = MONGO_BSON_NOT_FINISHED;
@@ -770,13 +826,15 @@ static int mongo_bson_valid( mongo *conn, const bson *bson, int write ) {
         }
     }
 
-    conn->err = 0;
+    conn->err = MONGO_CONN_SUCCESS;
 
     return MONGO_OK;
 }
 
 /* Determine whether this BSON object is valid for the given operation.  */
 static int mongo_cursor_bson_valid( mongo_cursor *cursor, const bson *bson ) {
+    check_mongo_object( cursor );
+    check_mongo_object( (void*)bson );
     if( ! bson->finished ) {
         cursor->err = MONGO_CURSOR_BSON_ERROR;
         cursor->conn->err = MONGO_BSON_NOT_FINISHED;
@@ -795,11 +853,16 @@ static int mongo_cursor_bson_valid( mongo_cursor *cursor, const bson *bson ) {
 static int mongo_check_last_error( mongo *conn, const char *ns,
                                    mongo_write_concern *write_concern ) {
     int ret = MONGO_OK;
-    bson response = {NULL, 0};
-    bson fields;
-    bson_iterator it;
+    bson response = INIT_BSON;
+    bson fields = INIT_BSON;
+    bson_iterator it = INIT_ITERATOR;
     int res = 0;
     char *cmd_ns = mongo_ns_to_cmd_db( ns );
+
+    check_mongo_object( conn );
+    if( write_concern ) {
+      check_mongo_object( write_concern );
+    };
 
     res = mongo_find_one( conn, cmd_ns, write_concern->cmd, bson_empty( &fields ), &response );
     bson_free( cmd_ns );
@@ -823,6 +886,11 @@ static int mongo_check_last_error( mongo *conn, const char *ns,
 static int mongo_choose_write_concern( mongo *conn,
                                        mongo_write_concern *custom_write_concern,
                                        mongo_write_concern **write_concern ) {
+
+    check_mongo_object( conn );
+    if( custom_write_concern ) {
+      check_mongo_object( custom_write_concern );
+    };
 
     if( custom_write_concern ) {
         *write_concern = custom_write_concern;
@@ -854,6 +922,10 @@ MONGO_EXPORT int mongo_insert( mongo *conn, const char *ns,
     mongo_message *mm;
     mongo_write_concern *write_concern = NULL;
 
+    check_mongo_object( conn) ;
+    if( custom_write_concern ) {
+      check_mongo_object( custom_write_concern );
+    };
     if( mongo_validate_ns( conn, ns ) != MONGO_OK )
         return MONGO_ERROR;
 
@@ -868,13 +940,13 @@ MONGO_EXPORT int mongo_insert( mongo *conn, const char *ns,
 
     mm = mongo_message_create( 16 /* header */
                                + 4 /* ZERO */
-                               + strlen( ns )
+                               + (int)strlen( ns )
                                + 1 + bson_size( bson )
                                , 0, 0, MONGO_OP_INSERT );
 
     data = &mm->data;
     data = mongo_data_append32( data, &ZERO );
-    data = mongo_data_append( data, ns, strlen( ns ) + 1 );
+    data = mongo_data_append( data, ns, (int)strlen( ns ) + 1 );
     mongo_data_append( data, bson->data, bson_size( bson ) );
 
 
@@ -900,9 +972,13 @@ MONGO_EXPORT int mongo_insert_batch( mongo *conn, const char *ns,
     mongo_write_concern *write_concern = NULL;
     int i;
     char *data;
-    int overhead =  16 + 4 + strlen( ns ) + 1;
+    int overhead =  16 + 4 + (int)strlen( ns ) + 1;
     int size = overhead;
 
+    check_mongo_object(conn);
+    if( custom_write_concern) {
+      check_mongo_object( custom_write_concern );
+    };
     if( mongo_validate_ns( conn, ns ) != MONGO_OK )
         return MONGO_ERROR;
 
@@ -929,7 +1005,7 @@ MONGO_EXPORT int mongo_insert_batch( mongo *conn, const char *ns,
         data = mongo_data_append32( data, &ONE );
     else
         data = mongo_data_append32( data, &ZERO );
-    data = mongo_data_append( data, ns, strlen( ns ) + 1 );
+    data = mongo_data_append( data, ns, (int)strlen( ns ) + 1 );
 
     for( i=0; i<count; i++ ) {
         data = mongo_data_append( data, bsons[i]->data, bson_size( bsons[i] ) );
@@ -956,6 +1032,10 @@ MONGO_EXPORT int mongo_update( mongo *conn, const char *ns, const bson *cond,
     mongo_message *mm;
     mongo_write_concern *write_concern = NULL;
 
+    check_mongo_object(conn);
+    if( custom_write_concern ) {
+      check_mongo_object( custom_write_concern );
+    };
     /* Make sure that the op BSON is valid UTF-8.
      * TODO: decide whether to check cond as well.
      * */
@@ -970,7 +1050,7 @@ MONGO_EXPORT int mongo_update( mongo *conn, const char *ns, const bson *cond,
 
     mm = mongo_message_create( 16 /* header */
                                + 4  /* ZERO */
-                               + strlen( ns ) + 1
+                               + (int)strlen( ns ) + 1
                                + 4  /* flags */
                                + bson_size( cond )
                                + bson_size( op )
@@ -978,7 +1058,7 @@ MONGO_EXPORT int mongo_update( mongo *conn, const char *ns, const bson *cond,
 
     data = &mm->data;
     data = mongo_data_append32( data, &ZERO );
-    data = mongo_data_append( data, ns, strlen( ns ) + 1 );
+    data = mongo_data_append( data, ns, (int)strlen( ns ) + 1 );
     data = mongo_data_append32( data, &flags );
     data = mongo_data_append( data, cond->data, bson_size( cond ) );
     mongo_data_append( data, op->data, bson_size( op ) );
@@ -1004,6 +1084,10 @@ MONGO_EXPORT int mongo_remove( mongo *conn, const char *ns, const bson *cond,
     mongo_message *mm;
     mongo_write_concern *write_concern = NULL;
 
+    check_mongo_object(conn);
+    if( custom_write_concern ) {
+      check_mongo_object( custom_write_concern );
+    };
     /* Make sure that the BSON is valid UTF-8.
      * TODO: decide whether to check cond as well.
      * */
@@ -1017,15 +1101,15 @@ MONGO_EXPORT int mongo_remove( mongo *conn, const char *ns, const bson *cond,
     }
 
     mm = mongo_message_create( 16  /* header */
-                               + 4  /* ZERO */
-                               + strlen( ns ) + 1
-                               + 4  /* ZERO */
-                               + bson_size( cond )
-                               , 0 , 0 , MONGO_OP_DELETE );
+                              + 4  /* ZERO */
+                              + (int)strlen( ns ) + 1
+                              + 4  /* ZERO */
+                              + bson_size( cond )
+                              , 0 , 0 , MONGO_OP_DELETE );
 
     data = &mm->data;
     data = mongo_data_append32( data, &ZERO );
-    data = mongo_data_append( data, ns, strlen( ns ) + 1 );
+    data = mongo_data_append( data, ns, (int)strlen( ns ) + 1 );
     data = mongo_data_append32( data, &ZERO );
     mongo_data_append( data, cond->data, bson_size( cond ) );
 
@@ -1050,18 +1134,20 @@ Write Concern API
 
 MONGO_EXPORT void mongo_write_concern_init( mongo_write_concern *write_concern ) {
     memset( write_concern, 0, sizeof( mongo_write_concern ) );
+    ASSIGN_SIGNATURE(write_concern, MONGO_SIGNATURE);
 }
 
 MONGO_EXPORT int mongo_write_concern_finish( mongo_write_concern *write_concern ) {
     bson *command;
 
+    check_mongo_object( write_concern );
     /* Destory any existing serialized write concern object and reuse it. */
     if( write_concern->cmd ) {
         bson_destroy( write_concern->cmd );
         command = write_concern->cmd;
     }
     else
-        command = (bson *)bson_malloc( sizeof( bson ) );
+        command = bson_create();
 
     if( !command ) {
         return MONGO_ERROR;
@@ -1100,19 +1186,25 @@ MONGO_EXPORT int mongo_write_concern_finish( mongo_write_concern *write_concern 
     return MONGO_OK;
 }
 
-MONGO_EXPORT void mongo_write_concern_destroy( mongo_write_concern *write_concern ) {
+MONGO_EXPORT void mongo_write_concern_destroy( mongo_write_concern *write_concern ) { 
     if( !write_concern )
         return;
+
+    check_mongo_object( write_concern );
 
     if( write_concern->cmd )
         bson_destroy( write_concern->cmd );
 
-    bson_free( write_concern->cmd );
+    if( write_concern->cmd ) {
+      bson_free( write_concern->cmd );
+      write_concern->cmd = NULL;
+    }
+    ASSIGN_SIGNATURE(write_concern, 0);
 }
 
 MONGO_EXPORT void mongo_set_write_concern( mongo *conn,
         mongo_write_concern *write_concern ) {
-
+    check_mongo_object(conn); 
     conn->write_concern = write_concern;
 }
 
@@ -1124,12 +1216,13 @@ MONGO_EXPORT void mongo_write_concern_destroy( mongo_write_concern *write_concer
 
 static int mongo_cursor_op_query( mongo_cursor *cursor ) {
     int res;
-    bson empty;
+    bson empty = INIT_BSON;
     char *data;
     mongo_message *mm;
-    bson temp;
-    bson_iterator it;
+    bson temp = INIT_BSON;
+    bson_iterator it = INIT_ITERATOR;
 
+    check_mongo_object( cursor );
     /* Clear any errors. */
     mongo_clear_errors( cursor->conn );
 
@@ -1146,7 +1239,7 @@ static int mongo_cursor_op_query( mongo_cursor *cursor ) {
 
     mm = mongo_message_create( 16 + /* header */
                                4 + /*  options */
-                               strlen( cursor->ns ) + 1 + /* ns */
+                               (int)strlen( cursor->ns ) + 1 + /* ns */
                                4 + 4 + /* skip,return */
                                bson_size( cursor->query ) +
                                bson_size( cursor->fields ) ,
@@ -1154,7 +1247,7 @@ static int mongo_cursor_op_query( mongo_cursor *cursor ) {
 
     data = &mm->data;
     data = mongo_data_append32( data , &cursor->options );
-    data = mongo_data_append( data , cursor->ns , strlen( cursor->ns ) + 1 );
+    data = mongo_data_append( data , cursor->ns , (int)strlen( cursor->ns ) + 1 );
     data = mongo_data_append32( data , &cursor->skip );
     data = mongo_data_append32( data , &cursor->limit );
     data = mongo_data_append( data , cursor->query->data , bson_size( cursor->query ) );
@@ -1190,6 +1283,8 @@ static int mongo_cursor_op_query( mongo_cursor *cursor ) {
 static int mongo_cursor_get_more( mongo_cursor *cursor ) {
     int res;
 
+    check_mongo_object( cursor );
+
     if( cursor->limit > 0 && cursor->seen >= cursor->limit ) {
         cursor->err = MONGO_CURSOR_EXHAUSTED;
         return MONGO_ERROR;
@@ -1204,7 +1299,7 @@ static int mongo_cursor_get_more( mongo_cursor *cursor ) {
     }
     else {
         char *data;
-        int sl = strlen( cursor->ns )+1;
+        int sl = (int)strlen( cursor->ns )+1;
         int limit = 0;
         mongo_message *mm;
 
@@ -1223,16 +1318,23 @@ static int mongo_cursor_get_more( mongo_cursor *cursor ) {
         data = mongo_data_append32( data, &limit );
         mongo_data_append64( data, &cursor->reply->fields.cursorID );
 
-        bson_free( cursor->reply );
+        if( cursor->reply ) {
+          bson_free( cursor->reply );
+          cursor->reply = NULL; /* We need this to prevent double freeing of reply */
+        }
         res = mongo_message_send( cursor->conn, mm );
         if( res != MONGO_OK ) {
-            mongo_cursor_destroy( cursor );
+            /* Commented destruction of cursor if it fails on attempt to retrieve more. User of the cursor "on the other side"
+               is keeping track of it and must free it when done */
+            /* mongo_cursor_destroy( cursor ); */
             return MONGO_ERROR;
         }
 
         res = mongo_read_response( cursor->conn, &( cursor->reply ) );
         if( res != MONGO_OK ) {
-            mongo_cursor_destroy( cursor );
+            /* Commented destruction of cursor if it fails on attempt to retrieve more. User of the cursor "on the other side"
+               is keeping track of it and must free it when done */
+            /* mongo_cursor_destroy( cursor ); */
             return MONGO_ERROR;
         }
         cursor->current.data = NULL;
@@ -1245,7 +1347,8 @@ static int mongo_cursor_get_more( mongo_cursor *cursor ) {
 MONGO_EXPORT mongo_cursor *mongo_find( mongo *conn, const char *ns, const bson *query,
                                        const bson *fields, int limit, int skip, int options ) {
 
-    mongo_cursor *cursor = ( mongo_cursor * )bson_malloc( sizeof( mongo_cursor ) );
+    mongo_cursor *cursor = mongo_cursor_create();
+    check_mongo_object(conn);
     mongo_cursor_init( cursor, conn, ns );
     cursor->flags |= MONGO_CURSOR_MUST_FREE;
 
@@ -1266,61 +1369,72 @@ MONGO_EXPORT mongo_cursor *mongo_find( mongo *conn, const char *ns, const bson *
 MONGO_EXPORT int mongo_find_one( mongo *conn, const char *ns, const bson *query,
                                  const bson *fields, bson *out ) {
 
-    mongo_cursor cursor[1];
-    mongo_cursor_init( cursor, conn, ns );
-    mongo_cursor_set_query( cursor, query );
-    mongo_cursor_set_fields( cursor, fields );
-    mongo_cursor_set_limit( cursor, 1 );
+    mongo_cursor cursor = INIT_MONGO_CURSOR;
+    check_mongo_object(conn);
+    mongo_cursor_init( &cursor, conn, ns );
+    mongo_cursor_set_query( &cursor, query );
+    mongo_cursor_set_fields( &cursor, fields );
+    mongo_cursor_set_limit( &cursor, 1 );
 
-    if ( mongo_cursor_next( cursor ) == MONGO_OK ) {
+    if ( mongo_cursor_next( &cursor ) == MONGO_OK ) {
         if( out ) {
-            bson_init_size( out, bson_size( (bson *)&cursor->current ) );
-            memcpy( out->data, cursor->current.data,
-                    bson_size( (bson *)&cursor->current ) );
+            bson_init_size( out, bson_size( (bson *)&cursor.current ) );
+            memcpy( out->data, cursor.current.data,
+                    bson_size( (bson *)&cursor.current ) );
             out->finished = 1;
         }
-        mongo_cursor_destroy( cursor );
+        mongo_cursor_destroy( &cursor );
         return MONGO_OK;
-    }
-    else {
-        mongo_cursor_destroy( cursor );
+    } else {
+        mongo_cursor_destroy( &cursor );
         return MONGO_ERROR;
     }
 }
 
 MONGO_EXPORT void mongo_cursor_init( mongo_cursor *cursor, mongo *conn, const char *ns ) {
-    memset( cursor, 0, sizeof( mongo_cursor ) );
+    check_mongo_object( conn );
+    check_mongo_object( cursor );
+    memset( cursor, 0, sizeof( mongo_cursor ) ); 
+    ASSIGN_SIGNATURE(cursor, MONGO_SIGNATURE);
     cursor->conn = conn;
-    cursor->ns = ( const char * )bson_malloc( strlen( ns ) + 1 );
+    cursor->ns = ( const char * )bson_malloc( (int)strlen( ns ) + 1 );
     strncpy( ( char * )cursor->ns, ns, strlen( ns ) + 1 );
-    cursor->current.data = NULL;
+    ASSIGN_SIGNATURE(&cursor->current, MONGO_SIGNATURE);
+    cursor->current.data = NULL;    
 }
 
 MONGO_EXPORT void mongo_cursor_set_query( mongo_cursor *cursor, const bson *query ) {
+    check_mongo_object( cursor );
     cursor->query = query;
 }
 
 MONGO_EXPORT void mongo_cursor_set_fields( mongo_cursor *cursor, const bson *fields ) {
+    check_mongo_object( cursor );
     cursor->fields = fields;
 }
 
 MONGO_EXPORT void mongo_cursor_set_skip( mongo_cursor *cursor, int skip ) {
+    check_mongo_object( cursor );
     cursor->skip = skip;
 }
 
 MONGO_EXPORT void mongo_cursor_set_limit( mongo_cursor *cursor, int limit ) {
+    check_mongo_object( cursor );
     cursor->limit = limit;
 }
 
 MONGO_EXPORT void mongo_cursor_set_options( mongo_cursor *cursor, int options ) {
+    check_mongo_object( cursor );
     cursor->options = options;
 }
 
 MONGO_EXPORT const char *mongo_cursor_data( mongo_cursor *cursor ) {
+    check_mongo_object( cursor );
     return cursor->current.data;
 }
 
 MONGO_EXPORT const bson *mongo_cursor_bson( mongo_cursor *cursor ) {
+    check_mongo_object( cursor );
     return (const bson *)&(cursor->current);
 }
 
@@ -1328,6 +1442,7 @@ MONGO_EXPORT int mongo_cursor_next( mongo_cursor *cursor ) {
     char *next_object;
     char *message_end;
 
+    check_mongo_object( cursor );
     if( ! ( cursor->flags & MONGO_CURSOR_QUERY_SENT ) )
         if( mongo_cursor_op_query( cursor ) != MONGO_OK )
             return MONGO_ERROR;
@@ -1387,6 +1502,7 @@ MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor ) {
 
     if ( !cursor ) return result;
 
+    check_mongo_object( cursor );
     /* Kill cursor if live. */
     if ( cursor->reply && cursor->reply->fields.cursorID ) {
         mongo *conn = cursor->conn;
@@ -1403,11 +1519,20 @@ MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor ) {
         result = mongo_message_send( conn, mm );
     }
 
-    bson_free( cursor->reply );
-    bson_free( ( void * )cursor->ns );
+    if( cursor->reply ) {
+      bson_free( cursor->reply ); 
+      cursor->reply = NULL;
+    }
+    if( cursor->ns ) {
+      bson_free( ( void * )cursor->ns );
+      cursor->ns = NULL;
+    }
+    ASSIGN_SIGNATURE(cursor, MONGO_SIGNATURE_READY_TO_DISPOSE);
 
-    if( cursor->flags & MONGO_CURSOR_MUST_FREE )
-        bson_free( cursor );
+    if( cursor->flags & MONGO_CURSOR_MUST_FREE ) {
+      cursor->flags = 0;
+      bson_free( cursor );
+    }
 
     return result;
 }
@@ -1415,11 +1540,16 @@ MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor ) {
 /* MongoDB Helper Functions */
 
 MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const bson *key, int options, bson *out ) {
-    bson b;
-    bson_iterator it;
+    bson b = INIT_BSON;
+    bson_iterator it = INIT_ITERATOR;
     char name[255] = {'_'};
-    int i = 1;
+    size_t i = 1;
     char idxns[1024];
+
+    check_mongo_object(conn);
+    if( mongo_bson_valid( conn, key, 0 ) != MONGO_OK ) {
+      return MONGO_ERROR;
+    }
 
     bson_iterator_init( &it, key );
     while( i < 255 && bson_iterator_next( &it ) ) {
@@ -1452,9 +1582,10 @@ MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const bson *ke
 }
 
 MONGO_EXPORT bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns, const char *field, int options, bson *out ) {
-    bson b;
+    bson b = INIT_BSON;
     bson_bool_t success;
 
+    check_mongo_object(conn);
     bson_init( &b );
     bson_append_int( &b, field, 1 );
     bson_finish( &b );
@@ -1467,9 +1598,10 @@ MONGO_EXPORT bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns,
 MONGO_EXPORT int mongo_create_capped_collection( mongo *conn, const char *db,
         const char *collection, int size, int max, bson *out ) {
 
-    bson b;
+    bson b = INIT_BSON;
     int result;
 
+    check_mongo_object(conn);
     bson_init( &b );
     bson_append_string( &b, "create", collection );
     bson_append_bool( &b, "capped", 1 );
@@ -1486,10 +1618,11 @@ MONGO_EXPORT int mongo_create_capped_collection( mongo *conn, const char *db,
 }
 
 MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *ns, const bson *query ) {
-    bson cmd;
-    bson out = {NULL, 0};
+    bson cmd = INIT_BSON;
+    bson out = INIT_BSON;
     double count = -1;
 
+    check_mongo_object(conn);
     bson_init( &cmd );
     bson_append_string( &cmd, "count", ns );
     if ( query && bson_size( query ) > 5 ) /* not empty */
@@ -1497,7 +1630,7 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *ns, co
     bson_finish( &cmd );
 
     if( mongo_run_command( conn, db, &cmd, &out ) == MONGO_OK ) {
-        bson_iterator it;
+        bson_iterator it = INIT_ITERATOR;
         if( bson_find( &it, &out, "n" ) )
             count = bson_iterator_double( &it );
         bson_destroy( &cmd );
@@ -1514,12 +1647,17 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *ns, co
 MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, const bson *command,
                                     bson *out ) {
     int ret = MONGO_OK;
-    bson response = {NULL, 0};
-    bson fields;
-    int sl = strlen( db );
-    char *ns = bson_malloc( sl + 5 + 1 ); /* ".$cmd" + nul */
+    bson response = INIT_BSON;
+    bson fields = INIT_BSON;
+    int sl = (int)strlen( db );
+    char *ns = (char*) bson_malloc( sl + 5 + 1 ); /* ".$cmd" + nul */
     int res, success = 0;
 
+    check_mongo_object(conn);
+    if( mongo_bson_valid( conn, command, 0 ) != MONGO_OK ) {
+      bson_free( ns );
+      return MONGO_ERROR;
+    };
     strcpy( ns, db );
     strcpy( ns+sl, ".$cmd" );
 
@@ -1529,7 +1667,7 @@ MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, const bson *com
     if( res != MONGO_OK )
         ret = MONGO_ERROR;
     else {
-        bson_iterator it;
+        bson_iterator it = INIT_ITERATOR;
         if( bson_find( &it, &response, "ok" ) )
             success = bson_iterator_bool( &it );
 
@@ -1551,10 +1689,11 @@ MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, const bson *com
 MONGO_EXPORT int mongo_simple_int_command( mongo *conn, const char *db,
         const char *cmdstr, int arg, bson *realout ) {
 
-    bson out = {NULL, 0};
-    bson cmd;
+    bson out = INIT_BSON;
+    bson cmd = INIT_BSON;
     int result;
 
+    check_mongo_object(conn);
     bson_init( &cmd );
     bson_append_int( &cmd, cmdstr, arg );
     bson_finish( &cmd );
@@ -1574,10 +1713,12 @@ MONGO_EXPORT int mongo_simple_int_command( mongo *conn, const char *db,
 MONGO_EXPORT int mongo_simple_str_command( mongo *conn, const char *db,
         const char *cmdstr, const char *arg, bson *realout ) {
 
-    bson out = {NULL, 0};
+    bson out = INIT_BSON;
     int result;
 
-    bson cmd;
+    bson cmd = INIT_BSON;
+    
+    check_mongo_object(conn);
     bson_init( &cmd );
     bson_append_string( &cmd, cmdstr, arg );
     bson_finish( &cmd );
@@ -1595,29 +1736,34 @@ MONGO_EXPORT int mongo_simple_str_command( mongo *conn, const char *db,
 }
 
 MONGO_EXPORT int mongo_cmd_drop_db( mongo *conn, const char *db ) {
+    check_mongo_object(conn);
     return mongo_simple_int_command( conn, db, "dropDatabase", 1, NULL );
 }
 
 MONGO_EXPORT int mongo_cmd_drop_collection( mongo *conn, const char *db, const char *collection, bson *out ) {
+    check_mongo_object(conn);
     return mongo_simple_str_command( conn, db, "drop", collection, out );
 }
 
 MONGO_EXPORT void mongo_cmd_reset_error( mongo *conn, const char *db ) {
+    check_mongo_object(conn);
     mongo_simple_int_command( conn, db, "reseterror", 1, NULL );
 }
 
 static int mongo_cmd_get_error_helper( mongo *conn, const char *db,
                                        bson *realout, const char *cmdtype ) {
 
-    bson out = {NULL,0};
+    bson out = INIT_BSON;
     bson_bool_t haserror = 0;
+
+    check_mongo_object(conn);
 
     /* Reset last error codes. */
     mongo_clear_errors( conn );
 
     /* If there's an error, store its code and string in the connection object. */
     if( mongo_simple_int_command( conn, db, cmdtype, 1, &out ) == MONGO_OK ) {
-        bson_iterator it;
+        bson_iterator it = INIT_ITERATOR;
         haserror = ( bson_find( &it, &out, "err" ) != BSON_NULL );
         if( haserror ) mongo_set_last_error( conn, &it, &out );
     }
@@ -1634,19 +1780,23 @@ static int mongo_cmd_get_error_helper( mongo *conn, const char *db,
 }
 
 MONGO_EXPORT int mongo_cmd_get_prev_error( mongo *conn, const char *db, bson *out ) {
+    check_mongo_object(conn);
     return mongo_cmd_get_error_helper( conn, db, out, "getpreverror" );
 }
 
 MONGO_EXPORT int mongo_cmd_get_last_error( mongo *conn, const char *db, bson *out ) {
+    check_mongo_object(conn);
     return mongo_cmd_get_error_helper( conn, db, out, "getlasterror" );
 }
 
 MONGO_EXPORT bson_bool_t mongo_cmd_ismaster( mongo *conn, bson *realout ) {
-    bson out = {NULL,0};
+    bson out = INIT_BSON;
     bson_bool_t ismaster = 0;
 
+    check_mongo_object(conn);
+
     if ( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
-        bson_iterator it;
+        bson_iterator it = INIT_ITERATOR;
         bson_find( &it, &out, "ismaster" );
         ismaster = bson_iterator_bool( &it );
     }
@@ -1674,20 +1824,21 @@ static void mongo_pass_digest( const char *user, const char *pass, char hex_dige
     mongo_md5_byte_t digest[16];
 
     mongo_md5_init( &st );
-    mongo_md5_append( &st, ( const mongo_md5_byte_t * )user, strlen( user ) );
+    mongo_md5_append( &st, ( const mongo_md5_byte_t * )user, (int)strlen( user ) );
     mongo_md5_append( &st, ( const mongo_md5_byte_t * )":mongo:", 7 );
-    mongo_md5_append( &st, ( const mongo_md5_byte_t * )pass, strlen( pass ) );
+    mongo_md5_append( &st, ( const mongo_md5_byte_t * )pass, (int)strlen( pass ) );
     mongo_md5_finish( &st, digest );
     digest2hex( digest, hex_digest );
 }
 
 MONGO_EXPORT int mongo_cmd_add_user( mongo *conn, const char *db, const char *user, const char *pass ) {
-    bson user_obj;
-    bson pass_obj;
+    bson user_obj = INIT_BSON;
+    bson pass_obj = INIT_BSON;
     char hex_digest[33];
-    char *ns = bson_malloc( strlen( db ) + strlen( ".system.users" ) + 1 );
+    char *ns = (char*)bson_malloc( (int)(strlen( db ) + strlen( ".system.users" ) + 1) );
     int res;
 
+    check_mongo_object(conn);
     strcpy( ns, db );
     strcpy( ns+strlen( db ), ".system.users" );
 
@@ -1713,8 +1864,8 @@ MONGO_EXPORT int mongo_cmd_add_user( mongo *conn, const char *db, const char *us
 }
 
 MONGO_EXPORT bson_bool_t mongo_cmd_authenticate( mongo *conn, const char *db, const char *user, const char *pass ) {
-    bson from_db;
-    bson cmd;
+    bson from_db = INIT_BSON;
+    bson cmd = INIT_BSON;
     const char *nonce;
     int result;
 
@@ -1722,8 +1873,9 @@ MONGO_EXPORT bson_bool_t mongo_cmd_authenticate( mongo *conn, const char *db, co
     mongo_md5_byte_t digest[16];
     char hex_digest[33];
 
+    check_mongo_object(conn);
     if( mongo_simple_int_command( conn, db, "getnonce", 1, &from_db ) == MONGO_OK ) {
-        bson_iterator it;
+        bson_iterator it = INIT_ITERATOR;
         bson_find( &it, &from_db, "nonce" );
         nonce = bson_iterator_string( &it );
     }
@@ -1734,8 +1886,8 @@ MONGO_EXPORT bson_bool_t mongo_cmd_authenticate( mongo *conn, const char *db, co
     mongo_pass_digest( user, pass, hex_digest );
 
     mongo_md5_init( &st );
-    mongo_md5_append( &st, ( const mongo_md5_byte_t * )nonce, strlen( nonce ) );
-    mongo_md5_append( &st, ( const mongo_md5_byte_t * )user, strlen( user ) );
+    mongo_md5_append( &st, ( const mongo_md5_byte_t * )nonce, (int)strlen( nonce ) );
+    mongo_md5_append( &st, ( const mongo_md5_byte_t * )user, (int)strlen( user ) );
     mongo_md5_append( &st, ( const mongo_md5_byte_t * )hex_digest, 32 );
     mongo_md5_finish( &st, digest );
     digest2hex( digest, hex_digest );

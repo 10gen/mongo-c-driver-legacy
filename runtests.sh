@@ -27,7 +27,7 @@ do
   esac
 done
 
-for i in `find . -name test_\* | grep -v '\.dSYM'`
+for i in `find . -name *_test`
 do
   if [ $valgrind -eq 1 ]
   then
