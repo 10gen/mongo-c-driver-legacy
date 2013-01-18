@@ -1445,19 +1445,24 @@ MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor ) {
 
 /* MongoDB Helper Functions */
 
-MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const bson *key, int options, bson *out ) {
+MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const char *name, const bson *key, int options, bson *out ) {
     bson b;
     bson_iterator it;
-    char name[255] = {'_'};
-    int i = 1;
+    char default_name[255];
+    int i = 0;
     char idxns[1024];
 
-    bson_iterator_init( &it, key );
-    while( i < 255 && bson_iterator_next( &it ) ) {
-        strncpy( name + i, bson_iterator_key( &it ), 255 - i );
-        i += strlen( bson_iterator_key( &it ) );
+    if (!name) {
+        bson_iterator_init( &it, key );
+        while( i < 255 && bson_iterator_next( &it ) ) {
+            strncpy( default_name + i, bson_iterator_key( &it ), 255 - i );
+            i += strlen( bson_iterator_key( &it ) );
+            default_name[i] = '_';
+            i++;
+        }
+        default_name[254] = '\0';
+        name = default_name;
     }
-    name[254] = '\0';
 
     bson_init( &b );
     bson_append_bson( &b, "key", key );
@@ -1490,7 +1495,7 @@ MONGO_EXPORT bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns,
     bson_append_int( &b, field, 1 );
     bson_finish( &b );
 
-    success = mongo_create_index( conn, ns, &b, options, out );
+    success = mongo_create_index( conn, ns, NULL, &b, options, out );
     bson_destroy( &b );
     return success;
 }

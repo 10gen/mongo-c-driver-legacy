@@ -657,6 +657,7 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll,
  *
  * @param conn a mongo object.
  * @param ns the namespace.
+ * @param name the name of the index (if NULL a default will be generated)
  * @param data the bson index data.
  * @param options a bitfield for setting index options. Possibilities include
  *   MONGO_INDEX_UNIQUE, MONGO_INDEX_DROP_DUPS, MONGO_INDEX_BACKGROUND,
@@ -665,7 +666,7 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll,
  *
  * @return MONGO_OK if index is created successfully; otherwise, MONGO_ERROR.
  */
-MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns,
+MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const char *name,
                                      const bson *key, int options, bson *out );
 
 /**
