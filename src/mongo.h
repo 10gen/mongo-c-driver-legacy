@@ -240,7 +240,7 @@ MONGO_EXPORT int mongo_connect( mongo *conn , const char *host, int port );
 
 /**
  * Set up this connection object for connecting to a replica set.
- * To connect, pass the object to mongo_replica_set_connect().
+ * To connect, pass the object to mongo_replica_set_add_seed().
  *
  * @param conn a mongo object.
  * @param name the name of the replica set to connect to.
@@ -250,7 +250,7 @@ MONGO_EXPORT void mongo_replica_set_init( mongo *conn, const char *name );
 /**
  * DEPRECATED - use mongo_replica_set_init.
  * Set up this connection object for connecting to a replica set.
- * To connect, pass the object to mongo_replset_connect().
+ * To connect, pass the object to mongo_replset_add_seed().
  *
  * @param conn a mongo object.
  * @param name the name of the replica set to connect to.
