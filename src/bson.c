@@ -110,8 +110,8 @@ MONGO_EXPORT int bson_size( const bson *b ) {
     return i;
 }
 
-MONGO_EXPORT size_t bson_buffer_size( const bson *b ) {
-    return (b->cur - b->data + 1);
+MONGO_EXPORT size_t bson_position( const bson *b ) {
+    return b->cur - b->data;
 }
 
 
@@ -629,7 +629,7 @@ static void bson_append64( bson *b, const void *data ) {
 }
 
 int bson_ensure_space( bson *b, const size_t bytesNeeded ) {
-    size_t pos = b->cur - b->data;
+    size_t pos = bson_position(b);
     char *orig = b->data;
     int new_size;
 
@@ -666,11 +666,11 @@ MONGO_EXPORT int bson_finish( bson *b ) {
     if ( ! b->finished ) {
         if ( bson_ensure_space( b, 1 ) == BSON_ERROR ) return BSON_ERROR;
         bson_append_byte( b, 0 );
-        if ( b->cur - b->data >= INT32_MAX ) {
+        if ( bson_position(b) >= INT32_MAX ) {
             b->err = BSON_SIZE_OVERFLOW;
             return BSON_ERROR;
         }
-        i = ( int )( b->cur - b->data );
+        i = ( int ) bson_position(b);
         bson_little_endian32( b->data, &i );
         b->finished = 1;
     }
@@ -927,14 +927,14 @@ MONGO_EXPORT int bson_append_time_t( bson *b, const char *name, time_t secs ) {
 
 MONGO_EXPORT int bson_append_start_object( bson *b, const char *name ) {
     if ( bson_append_estart( b, BSON_OBJECT, name, 5 ) == BSON_ERROR ) return BSON_ERROR;
-    b->stack[ b->stackPos++ ] = b->cur - b->data;
+    b->stack[ b->stackPos++ ] = bson_position(b);
     bson_append32( b , &zero );
     return BSON_OK;
 }
 
 MONGO_EXPORT int bson_append_start_array( bson *b, const char *name ) {
     if ( bson_append_estart( b, BSON_ARRAY, name, 5 ) == BSON_ERROR ) return BSON_ERROR;
-    b->stack[ b->stackPos++ ] = b->cur - b->data;
+    b->stack[ b->stackPos++ ] = bson_position(b);
     bson_append32( b , &zero );
     return BSON_OK;
 }
