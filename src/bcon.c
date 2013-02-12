@@ -152,8 +152,8 @@ typedef enum bcon_state_t {
 #define ARRAY_INDEX_STACK_SIZE 1024
 
 #define DOC_PUSH_STATE(return_state) ( doc_stack[doc_stack_pointer++] = (return_state) )
-#define DOC_POP_STATE ( state = doc_stack[--doc_stack_pointer] )
-#define ARRAY_PUSH_RESET_INDEX_STATE(return_state) ( array_index_stack[array_index_stack_pointer++] = array_index, array_index = 0, DOC_PUSH_STATE(return_state) )
+#define DOC_POP_STATE ( state = (bcon_state_t)doc_stack[--doc_stack_pointer] )
+#define ARRAY_PUSH_RESET_INDEX_STATE(return_state) ( array_index_stack[array_index_stack_pointer++] = (unsigned int)array_index, array_index = 0, DOC_PUSH_STATE(return_state) )
 #define ARRAY_POP_INDEX_STATE ( array_index = array_index_stack[--array_index_stack_pointer], DOC_POP_STATE )
 
 #define ARRAY_KEY_STRING(l) (bson_numstr(array_index_buffer, (int)(l)), array_index_buffer)
@@ -282,13 +282,25 @@ bcon_error_t bson_append_bcon_array(bson *b, const bcon *bc) {
  * match with bson_destroy
  */
 bcon_error_t bson_from_bcon(bson *b, const bcon *bc) {
-    bcon_error_t ret = BSON_OK;
+    bcon_error_t ret = (bcon_error_t)BSON_OK;
     bson_init( b );
     ret = bson_append_bcon_with_state( b, bc, State_Element );
     if (ret != BCON_OK) return ret;
-    ret = bson_finish( b );
+    ret = (bcon_error_t)bson_finish( b );
     return ( ret == BSON_OK ? BCON_OK : BCON_BSON_ERROR );
 }
+
+#ifdef WIN64
+  #define POINTER_PRINTSPEC "llx"
+  #define POINTER_TO_INT unsigned long long
+  #define TIME_T_PRINTSPEC "lld"
+  #define TIME_T_TO_INT unsigned long long
+#else
+  #define POINTER_PRINTSPEC "lx"
+  #define POINTER_TO_INT unsigned long
+  #define TIME_T_PRINTSPEC "ld"
+  #define TIME_T_TO_INT unsigned long
+#endif
 
 void bcon_print(const bcon *bc) { /* prints internal representation, not JSON */
     char *typespec = 0;
@@ -305,8 +317,8 @@ void bcon_print(const bcon *bc) { /* prints internal representation, not JSON */
                 switch (typespec[2]) {
                 case 'f': printf("%s%f", delim, bci.f); break;
                 case 's': printf("%s\"%s\"", delim, bci.s); break;
-                case 'D': printf("%sPD(0x%lx,..)", delim, (unsigned long)bci.D); break;
-                case 'A': printf("%sPA(0x%lx,....)", delim, (unsigned long)bci.A); break;
+                case 'D': printf("%sPD(0x%"POINTER_PRINTSPEC",..)", delim, ( POINTER_TO_INT )bci.D); break;
+                case 'A': printf("%sPA(0x%"POINTER_PRINTSPEC",....)", delim, ( POINTER_TO_INT )bci.A); break;
                 case 'o': printf("%s\"%s\"", delim, bci.o); break;
                 case 'b': printf("%s%d", delim, bci.b); break;
                 case 't': printf("%s%ld", delim, (long)bci.t); break;
@@ -319,31 +331,31 @@ void bcon_print(const bcon *bc) { /* prints internal representation, not JSON */
                 break;
             case 'R':
                 switch (typespec[2]) {
-                case 'f': printf("%sRf(0x%lx,%f)", delim, (unsigned long)bci.Rf, *bci.Rf); break;
-                case 's': printf("%sRs(0x%lx,\"%s\")", delim, (unsigned long)bci.Rs, bci.Rs); break;
-                case 'D': printf("%sRD(0x%lx,..)", delim, (unsigned long)bci.RD); break;
-                case 'A': printf("%sRA(0x%lx,....)", delim, (unsigned long)bci.RA); break;
-                case 'o': printf("%sRo(0x%lx,\"%s\")", delim, (unsigned long)bci.Ro, bci.Ro); break;
-                case 'b': printf("%sRb(0x%lx,%d)", delim, (unsigned long)bci.Rb, *bci.Rb); break;
-                case 't': printf("%sRt(0x%lx,%ld)", delim, (unsigned long)bci.Rt, (long)*bci.Rt); break;
-                case 'x': printf("%sRx(0x%lx,\"%s\")", delim, (unsigned long)bci.Rx, bci.Rx); break;
-                case 'i': printf("%sRi(0x%lx,%d)", delim, (unsigned long)bci.Ri, *bci.Ri); break;
-                case 'l': printf("%sRl(0x%lx,%ld)", delim, (unsigned long)bci.Rl, *bci.Rl); break;
+                case 'f': printf("%sRf(0x%"POINTER_PRINTSPEC",%f)", delim, ( POINTER_TO_INT )bci.Rf, *bci.Rf); break;
+                case 's': printf("%sRs(0x%"POINTER_PRINTSPEC",\"%s\")", delim, ( POINTER_TO_INT )bci.Rs, bci.Rs); break;
+                case 'D': printf("%sRD(0x%"POINTER_PRINTSPEC",..)", delim, ( POINTER_TO_INT )bci.RD); break;
+                case 'A': printf("%sRA(0x%"POINTER_PRINTSPEC",....)", delim, ( POINTER_TO_INT )bci.RA); break;
+                case 'o': printf("%sRo(0x%"POINTER_PRINTSPEC",\"%s\")", delim, ( POINTER_TO_INT )bci.Ro, bci.Ro); break;
+                case 'b': printf("%sRb(0x%"POINTER_PRINTSPEC",%d)", delim, ( POINTER_TO_INT )bci.Rb, *bci.Rb); break;
+                case 't': printf("%sRt(0x%"POINTER_PRINTSPEC",%ld)", delim, ( POINTER_TO_INT )bci.Rt, (long)*bci.Rt); break;
+                case 'x': printf("%sRx(0x%"POINTER_PRINTSPEC",\"%s\")", delim, ( POINTER_TO_INT )bci.Rx, bci.Rx); break;
+                case 'i': printf("%sRi(0x%"POINTER_PRINTSPEC",%d)", delim, ( POINTER_TO_INT )bci.Ri, *bci.Ri); break;
+                case 'l': printf("%sRl(0x%"POINTER_PRINTSPEC",%ld)", delim, ( POINTER_TO_INT )bci.Rl, *bci.Rl); break;
                 default: printf("\ntypespec:\"%s\"\n", typespec); assert(NOT_REACHED); break;
                 }
                 break;
             case 'P':
                 switch (typespec[2]) {
-                case 'f': printf("%sPf(0x%lx,0x%lx,%f)", delim, (unsigned long)bci.Pf, (unsigned long)(bci.Pf ? *bci.Pf : 0), bci.Pf && *bci.Pf ? **bci.Pf : 0.0); break;
-                case 's': printf("%sPs(0x%lx,0x%lx,\"%s\")", delim, (unsigned long)bci.Ps, (unsigned long)(bci.Ps ? *bci.Ps : 0), bci.Ps && *bci.Ps ? *bci.Ps : ""); break;
-                case 'D': printf("%sPD(0x%lx,0x%lx,..)", delim, (unsigned long)bci.PD, (unsigned long)(bci.PD ? *bci.PD : 0)); break;
-                case 'A': printf("%sPA(0x%lx,0x%lx,....)", delim, (unsigned long)bci.PA, (unsigned long)(bci.PA ? *bci.PA : 0)); break;
-                case 'o': printf("%sPo(0x%lx,0x%lx,\"%s\")", delim, (unsigned long)bci.Po, (unsigned long)(bci.Po ? *bci.Po : 0), bci.Po && *bci.Po ? *bci.Po : ""); break;
-                case 'b': printf("%sPb(0x%lx,0x%lx,%d)", delim, (unsigned long)bci.Pb, (unsigned long)(bci.Pb ? *bci.Pb : 0), bci.Pb && *bci.Pb ? **bci.Pb : 0); break;
-                case 't': printf("%sPt(0x%lx,0x%lx,%ld)", delim, (unsigned long)bci.Pt, (unsigned long)(bci.Pt ? *bci.Pt : 0), bci.Pt && *bci.Pt ? (long)**bci.Pt : 0); break;
-                case 'x': printf("%sPx(0x%lx,0x%lx,\"%s\")", delim, (unsigned long)bci.Px, (unsigned long)(bci.Px ? *bci.Px : 0), bci.Px && *bci.Px ? *bci.Px : ""); break;
-                case 'i': printf("%sPi(0x%lx,0x%lx,%d)", delim, (unsigned long)bci.Pi, (unsigned long)(bci.Pi ? *bci.Pi : 0), bci.Pi && *bci.Pi ? **bci.Pi : 0); break;
-                case 'l': printf("%sPl(0x%lx,0x%lx,%ld)", delim, (unsigned long)bci.Pl, (unsigned long)(bci.Pl ? *bci.Pl : 0), bci.Pl && *bci.Pl ? **bci.Pl : 0); break;
+                case 'f': printf("%sPf(0x%"POINTER_PRINTSPEC",%f)", delim, ( POINTER_TO_INT )bci.Pf, *bci.Pf); break;
+                case 's': printf("%sPs(0x%"POINTER_PRINTSPEC",\"%s\")", delim, ( POINTER_TO_INT )bci.Ps, *bci.Ps); break;                
+                case 'D': printf("%sPD(0x%"POINTER_PRINTSPEC",..)", delim, ( POINTER_TO_INT )bci.PD); break;
+                case 'A': printf("%sPA(0x%"POINTER_PRINTSPEC",....)", delim, (POINTER_TO_INT)bci.PA); break;
+                case 'o': printf("%sPo(0x%"POINTER_PRINTSPEC",\"%s\")", delim, ( POINTER_TO_INT )bci.Po, *bci.Po); break;
+                case 'b': printf("%sPb(0x%"POINTER_PRINTSPEC",%d)", delim, ( POINTER_TO_INT )bci.Pb, *bci.Pb); break;
+                case 't': printf("%sPt(0x%"POINTER_PRINTSPEC",%"TIME_T_PRINTSPEC")", delim, ( POINTER_TO_INT )bci.Pt, ( TIME_T_TO_INT )*bci.Pt); break;
+                case 'x': printf("%sPx(0x%"POINTER_PRINTSPEC",\"%s\")", delim, ( POINTER_TO_INT )bci.Px, *bci.Px); break;
+                case 'i': printf("%sPi(0x%"POINTER_PRINTSPEC",%d)", delim, ( POINTER_TO_INT )bci.Pi, *bci.Pi); break;
+                case 'l': printf("%sPl(0x%"POINTER_PRINTSPEC",%ld)", delim, ( POINTER_TO_INT )bci.Pl, *bci.Pl); break;                
 
                 default: printf("\ntypespec:\"%s\"\n", typespec); assert(NOT_REACHED); break;
                 }
