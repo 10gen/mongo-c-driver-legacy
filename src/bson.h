@@ -127,12 +127,24 @@ typedef enum {
 
 typedef int bson_bool_t;
 
-typedef struct {
+typedef struct {  
+#ifdef MONGO_MEMORY_PROTECTION
+    int mongo_sig; /** MONGO_SIGNATURE to validate object for memory corruption */
+#endif
     const char *cur;
     bson_bool_t first;
 } bson_iterator;
 
+#ifdef MONGO_MEMORY_PROTECTION
+  #define INIT_ITERATOR {MONGO_SIGNATURE, NULL, 0}
+#else
+  #define INIT_ITERATOR {NULL, 0}
+#endif
+
 typedef struct {
+#ifdef MONGO_MEMORY_PROTECTION
+    int mongo_sig; /** MONGO_SIGNATURE to validate object for memory corruption */
+#endif
     char *data;    /**< Pointer to a block of data in this BSON object. */
     char *cur;     /**< Pointer to the current position. */
     int dataSize;  /**< The number of bytes allocated to char *data. */
@@ -142,6 +154,12 @@ typedef struct {
     int err; /**< Bitfield representing errors or warnings on this buffer */
     char *errstr; /**< A string representation of the most recent error or warning. */
 } bson;
+
+#ifdef MONGO_MEMORY_PROTECTION
+  #define INIT_BSON {MONGO_SIGNATURE, NULL, NULL}
+#else
+  #define INIT_BSON {NULL, NULL}
+#endif
 
 #pragma pack(1)
 typedef union {
@@ -157,22 +175,6 @@ typedef struct {
     int t; /* time in seconds */
 } bson_timestamp_t;
 
-/* The following macros and declarations are part of a bigger refactoring in Mongo C client
-   that adds a layer of memory protection by checking that objects are valid by adding in
-   offset zero a signature that is managed by creation/destruction functions on the API */
-   
-#ifdef MONGO_MEMORY_PROTECTION
-  #define INIT_BSON {MONGO_SIGNATURE, NULL, NULL}
-#else
-  #define INIT_BSON {NULL, NULL}
-#endif
-
-#ifdef MONGO_MEMORY_PROTECTION
-  #define INIT_ITERATOR {MONGO_SIGNATURE, NULL, 0}
-#else
-  #define INIT_ITERATOR {NULL, 0}
-#endif
-
 #define MONGO_SIGNATURE 0xFFEEFFEE
 #define MONGO_SIGNATURE_READY_TO_DISPOSE 0xFFAAFFAA
 
@@ -187,7 +189,6 @@ static const char* SIG_MISMATCH_STR = "Object MONGO_SIGNATURE mismatch. This is 
   #define check_destroyed_mongo_object(obj) 
   #define ASSIGN_SIGNATURE(obj, sig)
 #endif
-
 
 /* ----------------------------
    READING
