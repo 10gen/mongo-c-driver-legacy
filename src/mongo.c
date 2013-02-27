@@ -378,12 +378,10 @@ static char *mongo_data_append64( char *start , const void *data ) {
 /* Connection API */
 
 static int mongo_check_is_master( mongo *conn ) {
-    bson out;
+    bson out = NULL_BSON;
     bson_iterator it;
     bson_bool_t ismaster = 0;
     int max_bson_size = MONGO_DEFAULT_MAX_BSON_SIZE;
-
-    out.data = NULL;
 
     if ( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
         if( bson_find( &it, &out, "ismaster" ) )
@@ -533,17 +531,13 @@ void mongo_parse_host( const char *host_string, mongo_host_port *host_port ) {
 }
 
 static void mongo_replica_set_check_seed( mongo *conn ) {
-    bson out;
-    bson hosts;
+    bson out = NULL_BSON;
+    bson hosts = NULL_BSON;
     const char *data;
     bson_iterator it;
     bson_iterator it_sub;
     const char *host_string;
     mongo_host_port *host_port = NULL;
-
-    out.data = NULL;
-
-    hosts.data = NULL;
 
     if( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
 
@@ -583,7 +577,7 @@ static void mongo_replica_set_check_seed( mongo *conn ) {
  */
 static int mongo_replica_set_check_host( mongo *conn ) {
 
-    bson out;
+    bson out = NULL_BSON;
     bson_iterator it;
     bson_bool_t ismaster = 0;
     const char *set_name;
@@ -811,8 +805,8 @@ static int mongo_cursor_bson_valid( mongo_cursor *cursor, const bson *bson ) {
 static int mongo_check_last_error( mongo *conn, const char *ns,
                                    mongo_write_concern *write_concern ) {
     int ret = MONGO_OK;
-    bson response = {NULL, 0};
-    bson fields;
+    bson response = NULL_BSON;
+    bson fields = NULL_BSON;
     bson_iterator it;
     int res = 0;
     char *cmd_ns = mongo_ns_to_cmd_db( ns );
@@ -1093,7 +1087,7 @@ MONGO_EXPORT int mongo_write_concern_finish( mongo_write_concern *write_concern 
         command = write_concern->cmd;
     }
     else
-        command = (bson *)bson_malloc( sizeof( bson ) );
+        command = bson_create_null();
 
     if( !command ) {
         return MONGO_ERROR;
@@ -1156,10 +1150,10 @@ MONGO_EXPORT void mongo_write_concern_destroy( mongo_write_concern *write_concer
 
 static int mongo_cursor_op_query( mongo_cursor *cursor ) {
     int res;
-    bson empty;
+    bson empty = NULL_BSON;
     char *data;
     mongo_message *mm;
-    bson temp;
+    bson temp = NULL_BSON;
     bson_iterator it;
 
     /* Clear any errors. */
@@ -1461,7 +1455,7 @@ MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor ) {
 #define INDEX_NAME_MAX_LENGTH (INDEX_NAME_BUFFER_SIZE - 1)
 
 MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const bson *key, const char *name, int options, bson *out ) {
-    bson b;
+    bson b = NULL_BSON;
     bson_iterator it;
     char default_name[INDEX_NAME_BUFFER_SIZE] = {'\0'};
     size_t len = 0;
@@ -1504,7 +1498,7 @@ MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const bson *ke
 }
 
 MONGO_EXPORT bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns, const char *field, int options, bson *out ) {
-    bson b;
+    bson b = NULL_BSON;
     bson_bool_t success;
 
     bson_init( &b );
@@ -1519,7 +1513,7 @@ MONGO_EXPORT bson_bool_t mongo_create_simple_index( mongo *conn, const char *ns,
 MONGO_EXPORT int mongo_create_capped_collection( mongo *conn, const char *db,
         const char *collection, int size, int max, bson *out ) {
 
-    bson b;
+    bson b = NULL_BSON;
     int result;
 
     bson_init( &b );
@@ -1538,8 +1532,8 @@ MONGO_EXPORT int mongo_create_capped_collection( mongo *conn, const char *db,
 }
 
 MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll, const bson *query ) {
-    bson cmd;
-    bson out = {NULL, 0};
+    bson cmd = NULL_BSON;
+    bson out = NULL_BSON;
     double count = -1;
 
     bson_init( &cmd );
@@ -1566,8 +1560,8 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll, 
 MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, const bson *command,
                                     bson *out ) {
     int ret = MONGO_OK;
-    bson response = {NULL, 0};
-    bson fields;
+    bson response = NULL_BSON;
+    bson fields = NULL_BSON;
     size_t sl = strlen( db );
     char *ns = bson_malloc( sl + 5 + 1 ); /* ".$cmd" + nul */
     int res, success = 0;
@@ -1603,8 +1597,8 @@ MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, const bson *com
 MONGO_EXPORT int mongo_simple_int_command( mongo *conn, const char *db,
         const char *cmdstr, int arg, bson *realout ) {
 
-    bson out = {NULL, 0};
-    bson cmd;
+    bson out = NULL_BSON;
+    bson cmd = NULL_BSON;
     int result;
 
     bson_init( &cmd );
@@ -1626,10 +1620,10 @@ MONGO_EXPORT int mongo_simple_int_command( mongo *conn, const char *db,
 MONGO_EXPORT int mongo_simple_str_command( mongo *conn, const char *db,
         const char *cmdstr, const char *arg, bson *realout ) {
 
-    bson out = {NULL, 0};
+    bson out = NULL_BSON;
     int result;
 
-    bson cmd;
+    bson cmd = NULL_BSON;
     bson_init( &cmd );
     bson_append_string( &cmd, cmdstr, arg );
     bson_finish( &cmd );
@@ -1661,7 +1655,7 @@ MONGO_EXPORT void mongo_cmd_reset_error( mongo *conn, const char *db ) {
 static int mongo_cmd_get_error_helper( mongo *conn, const char *db,
                                        bson *realout, const char *cmdtype ) {
 
-    bson out = {NULL,0};
+    bson out = NULL_BSON;
     bson_bool_t haserror = 0;
 
     /* Reset last error codes. */
@@ -1694,7 +1688,7 @@ MONGO_EXPORT int mongo_cmd_get_last_error( mongo *conn, const char *db, bson *ou
 }
 
 MONGO_EXPORT bson_bool_t mongo_cmd_ismaster( mongo *conn, bson *realout ) {
-    bson out = {NULL,0};
+    bson out = NULL_BSON;
     bson_bool_t ismaster = 0;
 
     if ( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {
@@ -1734,8 +1728,8 @@ static void mongo_pass_digest( const char *user, const char *pass, char hex_dige
 }
 
 MONGO_EXPORT int mongo_cmd_add_user( mongo *conn, const char *db, const char *user, const char *pass ) {
-    bson user_obj;
-    bson pass_obj;
+    bson user_obj = NULL_BSON;
+    bson pass_obj = NULL_BSON;
     char hex_digest[33];
     char *ns = bson_malloc( strlen( db ) + strlen( ".system.users" ) + 1 );
     int res;
@@ -1765,8 +1759,8 @@ MONGO_EXPORT int mongo_cmd_add_user( mongo *conn, const char *db, const char *us
 }
 
 MONGO_EXPORT bson_bool_t mongo_cmd_authenticate( mongo *conn, const char *db, const char *user, const char *pass ) {
-    bson from_db;
-    bson cmd;
+    bson from_db = NULL_BSON;
+    bson cmd = NULL_BSON;
     const char *nonce;
     int result;
 

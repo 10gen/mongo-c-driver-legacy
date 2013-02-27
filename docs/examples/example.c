@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 int main() {
-    bson b, sub, out, empty;
+    bson b = NULL_BSON, sub = NULL_BSON, out = NULL_BSON, empty = NULL_BSON;
     bson_iterator it;
     mongo conn;
     mongo_cursor cursor;

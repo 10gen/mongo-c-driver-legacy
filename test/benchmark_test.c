@@ -90,7 +90,7 @@ static void make_large( bson *out, int i ) {
 
 static void serialize_small_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_small( &b, i );
         bson_destroy( &b );
@@ -98,7 +98,7 @@ static void serialize_small_test( void ) {
 }
 static void serialize_medium_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_medium( &b, i );
         bson_destroy( &b );
@@ -106,7 +106,7 @@ static void serialize_medium_test( void ) {
 }
 static void serialize_large_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_large( &b, i );
         bson_destroy( &b );
@@ -114,7 +114,7 @@ static void serialize_large_test( void ) {
 }
 static void single_insert_small_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_small( &b, i );
         mongo_insert( conn, DB ".single.small", &b, NULL );
@@ -124,7 +124,7 @@ static void single_insert_small_test( void ) {
 
 static void single_insert_medium_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_medium( &b, i );
         mongo_insert( conn, DB ".single.medium", &b, NULL );
@@ -134,7 +134,7 @@ static void single_insert_medium_test( void ) {
 
 static void single_insert_large_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_large( &b, i );
         mongo_insert( conn, DB ".single.large", &b, NULL );
@@ -144,7 +144,7 @@ static void single_insert_large_test( void ) {
 
 static void index_insert_small_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     ASSERT( mongo_create_simple_index( conn, DB ".index.small", "x", 0, NULL ) == MONGO_OK );
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_small( &b, i );
@@ -155,7 +155,7 @@ static void index_insert_small_test( void ) {
 
 static void index_insert_medium_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     ASSERT( mongo_create_simple_index( conn, DB ".index.medium", "x", 0, NULL ) == MONGO_OK );
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_medium( &b, i );
@@ -166,7 +166,7 @@ static void index_insert_medium_test( void ) {
 
 static void index_insert_large_test( void ) {
     int i;
-    bson b;
+    bson b = NULL_BSON;
     ASSERT( mongo_create_simple_index( conn, DB ".index.large", "x", 0, NULL ) == MONGO_OK );
     for ( i=0; i<PER_TRIAL; i++ ) {
         make_large( &b, i );
@@ -177,10 +177,13 @@ static void index_insert_large_test( void ) {
 
 static void batch_insert_small_test( void ) {
     int i, j;
+    bson null_bson = NULL_BSON;
     bson b[BATCH_SIZE];
     bson *bp[BATCH_SIZE];
-    for ( j=0; j < BATCH_SIZE; j++ )
+    for ( j=0; j < BATCH_SIZE; j++ ) {
+        memcpy(&b[j], &null_bson, sizeof(bson));
         bp[j] = &b[j];
+    }
 
     for ( i=0; i < ( PER_TRIAL / BATCH_SIZE ); i++ ) {
         for ( j=0; j < BATCH_SIZE; j++ )
@@ -195,10 +198,13 @@ static void batch_insert_small_test( void ) {
 
 static void batch_insert_medium_test( void ) {
     int i, j;
+    bson null_bson = NULL_BSON;
     bson b[BATCH_SIZE];
     bson *bp[BATCH_SIZE];
-    for ( j=0; j < BATCH_SIZE; j++ )
+    for ( j=0; j < BATCH_SIZE; j++ ) {
+        memcpy(&b[j], &null_bson, sizeof(bson));
         bp[j] = &b[j];
+    }
 
     for ( i=0; i < ( PER_TRIAL / BATCH_SIZE ); i++ ) {
         for ( j=0; j < BATCH_SIZE; j++ )
@@ -213,10 +219,13 @@ static void batch_insert_medium_test( void ) {
 
 static void batch_insert_large_test( void ) {
     int i, j;
+    bson null_bson = NULL_BSON;
     bson b[BATCH_SIZE];
     bson *bp[BATCH_SIZE];
-    for ( j=0; j < BATCH_SIZE; j++ )
+    for ( j=0; j < BATCH_SIZE; j++ ) {
+        memcpy(&b[j], &null_bson, sizeof(bson));
         bp[j] = &b[j];
+    }
 
     for ( i=0; i < ( PER_TRIAL / BATCH_SIZE ); i++ ) {
         for ( j=0; j < BATCH_SIZE; j++ )
@@ -236,7 +245,7 @@ static void make_query( bson *b ) {
 }
 
 static void find_one( const char *ns ) {
-    bson b;
+    bson b = NULL_BSON;
     int i;
     for ( i=0; i < PER_TRIAL; i++ ) {
         make_query( &b );
@@ -266,7 +275,7 @@ static void find_one_index_large_test( void )  {
 }
 
 static void find( const char *ns ) {
-    bson b;
+    bson b = NULL_BSON;
     int i;
     for ( i=0; i < PER_TRIAL; i++ ) {
         mongo_cursor *cursor;
@@ -305,7 +314,7 @@ static void find_index_large_test( void )  {
 
 static void find_range( const char *ns ) {
     int i;
-    bson bb;
+    bson bb = NULL_BSON;
     mongo_cursor *cursor;
 
     for ( i=0; i < PER_TRIAL; i++ ) {
@@ -377,7 +386,7 @@ static void time_it( nullary func, const char *name, bson_bool_t gle ) {
 #define TIME(func, gle) (time_it(func, #func, gle))
 
 static void clean( void ) {
-    bson b;
+    bson b = NULL_BSON;
     if ( mongo_cmd_drop_db( conn, DB ) != MONGO_OK ) {
         printf( "failed to drop db\n" );
         exit( 1 );

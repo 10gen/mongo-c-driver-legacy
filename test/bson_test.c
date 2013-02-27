@@ -10,9 +10,9 @@ int test_bson_generic( void ) {
    bson_oid_t oid;
    bson_timestamp_t ts;
    bson_timestamp_t ts_result;
-   bson b[1];
-   bson copy[1];
-   bson scope[1];
+   bson b[1] = { NULL_BSON };
+   bson copy[1] = { NULL_BSON };
+   bson scope[1] = { NULL_BSON };
 
    ts.i = 1;
    ts.t = 2;
@@ -200,7 +200,7 @@ int test_bson_generic( void ) {
    ASSERT( !strcmp( bson_iterator_code( &it ), "function(){return i}" ) );
 
    {
-       bson scope;
+       bson scope = NULL_BSON;
        bson_iterator_code_scope( &it, &scope );
        bson_iterator_init( &it2, &scope );
 
@@ -238,7 +238,7 @@ int test_bson_generic( void ) {
    bson_destroy( b );
 
    {
-       bson bsrc[1];
+       bson bsrc[1] = { NULL_BSON };
        bson_init( bsrc );
        bson_append_double( bsrc, "d", 3.14 );
        bson_finish( bsrc );
@@ -283,7 +283,7 @@ int test_bson_generic( void ) {
 }
 
 int test_bson_iterator( void ) {
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     bson_iterator i[1];
 
     bson_iterator_init( i, bson_empty( b ) );
@@ -296,7 +296,7 @@ int test_bson_iterator( void ) {
 }
 
 int test_bson_size( void ) {
-    bson bsmall[1];
+    bson bsmall[1] = { NULL_BSON };
 
     bson_init( bsmall );
     bson_append_int( bsmall, "a", 1 );

@@ -138,7 +138,7 @@ you'll want to reconnect when you see this. Here's a very basic example:
 
 .. code-block:: c
 
-   bson b[1];
+   bson b[1] = { NULL_BSON };
 
    bson_init( b );
    bson_append_string( b, "hello", "world" );

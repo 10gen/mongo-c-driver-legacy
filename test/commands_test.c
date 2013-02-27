@@ -8,8 +8,8 @@
 
 int main() {
     mongo conn[1];
-    bson cmd[1];
-    bson out[1];
+    bson cmd[1] = { NULL_BSON };
+    bson out[1] = { NULL_BSON };
     bson_iterator it[1];
     char version[10];
 

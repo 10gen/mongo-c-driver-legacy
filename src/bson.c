@@ -56,8 +56,13 @@ static int ( *oid_inc_func )( void )  = NULL;
    READING
    ------------------------------ */
 
-MONGO_EXPORT bson* bson_create( void ) {
-    return (bson*)bson_malloc(sizeof(bson));
+MONGO_EXPORT bson* bson_create_null( void ) {
+    bson null_bson = NULL_BSON;
+    bson *result;
+    
+    result = (bson*)bson_malloc(sizeof(bson));
+    memccpy(result, &null_bson, 1, sizeof(bson));
+    return result;
 }
 
 MONGO_EXPORT void bson_dispose(bson* b) {
@@ -197,7 +202,7 @@ MONGO_EXPORT void bson_print_raw( const char *data , int depth ) {
     int temp;
     bson_timestamp_t ts;
     char oidhex[25];
-    bson scope;
+    bson scope = NULL_BSON;
     bson_iterator_from_buffer( &i, data );
 
     while ( bson_iterator_next( &i ) ) {

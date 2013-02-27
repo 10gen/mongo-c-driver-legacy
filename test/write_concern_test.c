@@ -68,14 +68,14 @@ void test_write_concern_finish( void ) {
 void test_batch_insert_with_continue( mongo *conn ) {
     bson *objs[5];
     bson *objs2[5];
-    bson empty;
+    bson empty = NULL_BSON;
     int i;
 
     mongo_cmd_drop_collection( conn, TEST_DB, TEST_COL, NULL );
     mongo_create_simple_index( conn, TEST_NS, "n", MONGO_INDEX_UNIQUE, NULL );
 
     for( i=0; i<5; i++ ) {
-        objs[i] = bson_malloc( sizeof( bson ) );
+        objs[i] = bson_create_null();
         bson_init( objs[i] );
         bson_append_int( objs[i], "n", i );
         bson_finish( objs[i] );
@@ -88,14 +88,14 @@ void test_batch_insert_with_continue( mongo *conn ) {
           bson_empty( &empty ) ) == 5 );
 
     /* Add one duplicate value for n. */
-    objs2[0] = bson_malloc( sizeof( bson ) );
+    objs2[0] = bson_create_null();
     bson_init( objs2[0] );
     bson_append_int( objs2[0], "n", 1 );
     bson_finish( objs2[0] );
 
     /* Add n for 6 - 9. */
     for( i = 1; i < 5; i++ ) {
-        objs2[i] = bson_malloc( sizeof( bson ) );
+        objs2[i] = bson_create_null();
         bson_init( objs2[i] );
         bson_append_int( objs2[i], "n", i + 5 );
         bson_finish( objs2[i] );
@@ -115,10 +115,10 @@ void test_batch_insert_with_continue( mongo *conn ) {
 
     for( i=0; i<5; i++ ) {
         bson_destroy( objs2[i] );
-        bson_free( objs2[i] );
+        bson_dispose( objs2[i] );
 
         bson_destroy( objs[i] );
-        bson_free( objs[i] );
+        bson_dispose( objs[i] );
     }
 }
 
@@ -127,14 +127,14 @@ void test_batch_insert_with_continue( mongo *conn ) {
 void test_update_and_remove( mongo *conn ) {
     mongo_write_concern wc[1];
     bson *objs[5];
-    bson query[1], update[1];
-    bson empty;
+    bson query[1] = { NULL_BSON }, update[1] = { NULL_BSON };
+    bson empty = NULL_BSON;
     int i;
 
     create_capped_collection( conn );
 
     for( i=0; i<5; i++ ) {
-        objs[i] = bson_malloc( sizeof( bson ) );
+        objs[i] = bson_create_null();
         bson_init( objs[i] );
         bson_append_int( objs[i], "n", i );
         bson_finish( objs[i] );
@@ -185,13 +185,13 @@ void test_update_and_remove( mongo *conn ) {
     bson_destroy( update );
     for( i=0; i<5; i++ ) {
         bson_destroy( objs[i] );
-        bson_free( objs[i] );
+        bson_dispose( objs[i] );
     }
 }
 
 void test_write_concern_input( mongo *conn ) {
     mongo_write_concern wc[1], wcbad[1];
-    bson b[1];
+    bson b[1] = { NULL_BSON };
 
     mongo_cmd_drop_collection( conn, TEST_DB, TEST_COL, NULL );
 
@@ -236,7 +236,7 @@ void test_write_concern_input( mongo *conn ) {
 
 void test_insert( mongo *conn ) {
     mongo_write_concern wc0[1], wc1[1];
-    bson b[1], b2[1], b3[1], b4[1], empty[1];
+    bson b[1] = { NULL_BSON }, b2[1] = { NULL_BSON }, b3[1] = { NULL_BSON }, b4[1] = { NULL_BSON }, empty[1] = { NULL_BSON };
     bson *objs[2];
 
     mongo_cmd_drop_collection( conn, TEST_DB, TEST_COL, NULL );

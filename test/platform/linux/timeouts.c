@@ -10,7 +10,7 @@
 int main() {
 
     mongo conn[1];
-    bson b;
+    bson b = NULL_BSON;
     int res;
 
     if( mongo_client( conn, TEST_SERVER, 27017 ) != MONGO_OK ) {

@@ -122,7 +122,7 @@ Changes:
 
   Example:
 
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     bson_init( b );
     bson_append_int( b, "foo", 1 );
     bson_finish( b );
@@ -146,13 +146,13 @@ Changes:
     mongo_cursor cursor[1];
     mongo_cursor_init( cursor, conn, "test.foo" );
 
-    bson query[1];
+    bson query[1] = { NULL_BSON };
 
     bson_init( query );
     bson_append_int( query, "bar", 1 );
     bson_finish( query );
 
-    bson fields[1];
+    bson fields[1] = { NULL_BSON };
 
     bson_init( fields );
     bson_append_int( fields, "baz", 1 );
@@ -174,7 +174,7 @@ Changes:
 
   Example:
 
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     bson_iterator i[1];
 
     bson_iterator_init( i, b );

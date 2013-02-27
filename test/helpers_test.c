@@ -10,7 +10,7 @@
 void test_index_helper( mongo *conn ) {
     int ret;
 
-    bson b, out;
+    bson b = NULL_BSON, out = NULL_BSON;
     bson_iterator it;
 
     bson_init( &b );

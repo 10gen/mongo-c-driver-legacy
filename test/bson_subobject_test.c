@@ -6,9 +6,9 @@
 
 int main() {
     bson_iterator it[1], it2[1];
-    bson b[1];
-    bson sub[1];
-    bson copy[1];
+    bson b[1] = { NULL_BSON };
+    bson sub[1] = { NULL_BSON };
+    bson copy[1] = { NULL_BSON };
     bson_type type;
 
     bson_init( b );

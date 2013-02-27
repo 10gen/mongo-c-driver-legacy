@@ -99,7 +99,7 @@ int test_namespace_validation( void ) {
 
 int test_namespace_validation_on_insert( void ) {
     mongo conn[1];
-    bson b[1], b2[1];
+    bson b[1] = { NULL_BSON }, b2[1] = { NULL_BSON };
     bson *objs[2];
 
     INIT_SOCKETS_FOR_WINDOWS;
@@ -142,7 +142,7 @@ int test_insert_limits( void ) {
     mongo conn[1];
     int i;
     char key[10];
-    bson b[1], b2[1];
+    bson b[1] = { NULL_BSON }, b2[1] = { NULL_BSON };
     bson *objs[2];
 
     /* Test the default max BSON size. */
@@ -195,7 +195,7 @@ int test_insert_limits( void ) {
 
 int test_get_last_error_commands( void ) {
     mongo conn[1];
-    bson obj;
+    bson obj = NULL_BSON;
 
     INIT_SOCKETS_FOR_WINDOWS;
 

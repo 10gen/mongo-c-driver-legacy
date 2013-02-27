@@ -10,7 +10,7 @@
 int main() {
     mongo conn[1];
     mongo_cursor cursor[1];
-    bson b;
+    bson b = NULL_BSON;
     int i;
     char hex_oid[25];
     bson_timestamp_t ts = { 1, 2 };
@@ -36,7 +36,7 @@ int main() {
     mongo_destroy( conn );
 
     * BSON API
-    bson obj[1];
+    bson obj[1] = { NULL_BSON };
 
     bson_init( obj );
     bson_append_int( obj, "a", 1 );

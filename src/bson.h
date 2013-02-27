@@ -132,6 +132,8 @@ typedef struct {
     bson_bool_t first;
 } bson_iterator;
 
+#define NULL_BSON { NULL, NULL, 0, 0, { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, 0, 0, NULL }
+
 typedef struct {
     char *data;    /**< Pointer to a block of data in this BSON object. */
     char *cur;     /**< Pointer to the current position. */
@@ -161,7 +163,7 @@ typedef struct {
    READING
    ------------------------------ */
 
-MONGO_EXPORT bson* bson_create( void );
+MONGO_EXPORT bson* bson_create_null( void );
 MONGO_EXPORT void  bson_dispose(bson* b);
 
 /**

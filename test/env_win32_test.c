@@ -22,7 +22,7 @@ typedef int socklen_t;
  */
 int test_read_timeout( void ) {
     mongo conn[1];
-    bson b, obj, out, fields;
+    bson b = NULL_BSON, obj = NULL_BSON, out = NULL_BSON, fields = NULL_BSON;
     int res;
 
     if ( mongo_client( conn, TEST_SERVER, 27017 ) ) {
@@ -59,7 +59,7 @@ int test_read_timeout( void ) {
 /* Test getaddrinfo() by successfully connecting to 'localhost'. */
 int test_getaddrinfo( void ) {
     mongo conn[1];
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     const char *ns = "test.foo";
     const char *errmsg = "getaddrinfo failed";
 
@@ -95,7 +95,7 @@ int test_getaddrinfo( void ) {
 
 int test_error_messages( void ) {
     mongo conn[1];
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     const char *ns = "test.foo";
 
     mongo_init( conn );

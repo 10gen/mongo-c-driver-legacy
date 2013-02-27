@@ -35,7 +35,7 @@ To demonstrate, let's create a BSON object corresponding to the simple JSON obje
 
 .. code-block:: c
 
-    bson b[1];
+    bson b[1] = { NULL_BSON };
 
     bson_init( b );
     bson_append_int( b, "count", 1001 );
@@ -69,7 +69,7 @@ corresponding to the following JSON object:
 
 .. code-block:: c
 
-     bson b[1];
+     bson b[1] = { NULL_BSON };
 
      bson_init( b );
      bson_append_string( b, "name", "Kyle" );
@@ -198,7 +198,7 @@ object, use ``bsop_copy()``.
 
 .. code-block:: c
 
-   bson copy[1];
+   bson copy[1] = { NULL_BSON };
 
    bson_copy( copy, sub );
 

@@ -76,7 +76,7 @@ int test_reconnect( const char *set_name ) {
     mongo conn[1];
     int res = 0;
     int e = 0;
-    bson b;
+    bson b = NULL_BSON;
 
     INIT_SOCKETS_FOR_WINDOWS;
 
@@ -118,7 +118,7 @@ int test_insert_limits( const char *set_name ) {
     int i;
     char key[10];
     int res = 0;
-    bson b[1], b2[1];
+    bson b[1] = { NULL_BSON }, b2[1] = { NULL_BSON };
     bson *objs[2];
 
     mongo_write_concern_init( wc );

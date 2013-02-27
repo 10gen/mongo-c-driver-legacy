@@ -61,7 +61,7 @@ Example
    int main() {
        mongo conn[1];
        mongo_write_concern write_concern[1];
-       bson b[1];
+       bson b[1] = { NULL_BSON };
 
        if( mongo_client( conn, "127.0.0.1", 27017 ) == MONGO_ERROR ) {
            printf( "Failed to connect!\n" );

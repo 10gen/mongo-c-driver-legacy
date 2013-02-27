@@ -32,7 +32,7 @@ MONGO_EXTERN_C_START
 int mongo_get_server_version( char *version ) {
     int ret = 0;
     mongo conn[1];
-    bson cmd[1], out[1];
+    bson cmd[1] = { NULL_BSON }, out[1] = { NULL_BSON };
     bson_iterator it[1];
     const char *result;
 

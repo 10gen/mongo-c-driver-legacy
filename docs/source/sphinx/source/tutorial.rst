@@ -127,7 +127,7 @@ To create BSON objects
 
 .. code-block:: c
 
-  bson b[1];
+  bson b[1] = { NULL_BSON };
 
   bson_init( b )
   bson_append_string( b, "name", "Joe" );
@@ -145,7 +145,7 @@ at the beginning of the object, as we do here:
 
 .. code-block:: c
 
-    bson b[1];
+    bson b[1] = { NULL_BSON };
 
     bson_init( b );
     bson_append_new_oid( b, "_id" );
@@ -192,7 +192,7 @@ We can do batch inserts as well:
       ps = ( bson ** )malloc( sizeof( bson * ) * n);
 
       for ( i = 0; i < n; i++ ) {
-        p = ( bson * )malloc( sizeof( bson ) );
+        p = bson_create_null();
         bson_init( p );
         bson_append_new_oid( p_buf, "_id" );
         bson_append_string( p_buf, "name", names[i] );
@@ -205,7 +205,7 @@ We can do batch inserts as well:
 
       for ( i = 0; i < n; i++ ) {
         bson_destroy( ps[i] );
-        free( ps[i] );
+        bson_dispose( ps[i] );
       }
     }
 
@@ -240,7 +240,7 @@ whose age is 24:
 .. code-block:: c
 
     static void tutorial_simple_query( mongo *conn ) {
-      bson query[1];
+      bson query[1] = { NULL_BSON };
       mongo_cursor cursor[1];
 
       bson_init( query );
@@ -331,7 +331,7 @@ is equivalent to the following C function:
 .. code-block:: c
 
     static void tutorial_update( mongo *conn ) {
-      bson cond[1], op[1];
+      bson cond[1] = { NULL_BSON }, op[1] = { NULL_BSON };
 
       bson_init( cond );
         bson_append_string( cond, "name", "Joe");
@@ -367,7 +367,7 @@ the second is a compound index on ``name`` and ``age``.
 .. code-block:: c
 
     static void tutorial_index( mongo *conn ) {
-      bson key[1];
+      bson key[1] = { NULL_BSON };
 
       bson_init( key );
       bson_append_int( key, "name", 1 );

@@ -116,7 +116,7 @@ You can change the referenced content and the new values will be interpolated wh
 
 .. code-block:: c
 
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     char name[] = "pi";
     double value = 3.14159;
     bcon bc[] = { "name", BRS(name), "value", BRF(&value), BEND };
@@ -139,7 +139,7 @@ If you set the pointer to null, the element will skipped and not inserted into t
 
 .. code-block:: c
 
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     char name[] = "pi";
     char new_name[] = "log(0)";
     char **pname = (char**)&name;
@@ -163,7 +163,7 @@ Use the BS macro or the ":_s:" type specifier for string to allow string values 
 
 .. code-block:: c
 
-    bson b[1];
+    bson b[1] = { NULL_BSON };
     bcon bc[] = { "spec", BS(":_s:"), BEND };
     bson_from_bcon( b, bc ); // generates { spec: ":_s:" }
 

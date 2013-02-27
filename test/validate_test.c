@@ -18,7 +18,7 @@ static void make_small_invalid( bson *out, int i ) {
 
 int main() {
     mongo conn[1];
-    bson b, empty;
+    bson b = NULL_BSON, empty = NULL_BSON;
     mongo_cursor cursor[1];
     unsigned char not_utf8[3];
     int result = 0;
@@ -27,6 +27,9 @@ int main() {
     int i=0, j=0;
     bson bs[BATCH_SIZE];
     bson *bp[BATCH_SIZE];
+
+    for ( i=0; i < BATCH_SIZE; i++)
+        memcpy(&bs[i], &empty, sizeof(bson));
 
     not_utf8[0] = 0xC0;
     not_utf8[1] = 0xC0;

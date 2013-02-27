@@ -48,7 +48,7 @@ MONGO_EXPORT void gridfile_get_descriptor(gridfile* gf, bson* out) {
 
 static bson *chunk_new( bson_oid_t id, int chunkNumber,
                         const char *data, size_t len ) {
-    bson *b = bson_malloc( sizeof( bson ) );
+    bson *b = bson_create_null();
 
     bson_init( b );
     bson_append_oid( b, "files_id", &id );
@@ -60,14 +60,14 @@ static bson *chunk_new( bson_oid_t id, int chunkNumber,
 
 static void chunk_free( bson *oChunk ) {
     bson_destroy( oChunk );
-    bson_free( oChunk );
+    bson_dispose( oChunk );
 }
 
 int gridfs_init( mongo *client, const char *dbname, const char *prefix,
                  gridfs *gfs ) {
 
     int options;
-    bson b;
+    bson b = NULL_BSON;
     bson_bool_t success;
 
     gfs->client = client;
@@ -140,9 +140,9 @@ MONGO_EXPORT void gridfs_destroy( gridfs *gfs ) {
 static int gridfs_insert_file( gridfs *gfs, const char *name,
                                const bson_oid_t id, gridfs_offset length,
                                const char *contenttype ) {
-    bson command;
-    bson ret;
-    bson res;
+    bson command = NULL_BSON;
+    bson ret = NULL_BSON;
+    bson res = NULL_BSON;
     bson_iterator it;
     int result;
     int64_t d;
@@ -374,12 +374,12 @@ int gridfs_store_file( gridfs *gfs, const char *filename,
 }
 
 MONGO_EXPORT void gridfs_remove_filename( gridfs *gfs, const char *filename ) {
-    bson query;
+    bson query = NULL_BSON;
     mongo_cursor *files;
-    bson file;
+    bson file = NULL_BSON;
     bson_iterator it;
     bson_oid_t id;
-    bson b;
+    bson b = NULL_BSON;
 
     bson_init( &query );
     bson_append_string( &query, "filename", filename );
@@ -414,9 +414,9 @@ MONGO_EXPORT void gridfs_remove_filename( gridfs *gfs, const char *filename ) {
 int gridfs_find_query( gridfs *gfs, bson *query,
                        gridfile *gfile ) {
 
-    bson uploadDate;
-    bson finalQuery;
-    bson out;
+    bson uploadDate = NULL_BSON;
+    bson finalQuery = NULL_BSON;
+    bson out = NULL_BSON;
     int i;
 
     bson_init( &uploadDate );
@@ -445,7 +445,7 @@ int gridfs_find_filename( gridfs *gfs, const char *filename,
                           gridfile *gfile )
 
 {
-    bson query;
+    bson query = NULL_BSON;
     int i;
 
     bson_init( &query );
@@ -461,7 +461,7 @@ int gridfile_init( gridfs *gfs, bson *meta, gridfile *gfile )
 {
     gfile->gfs = gfs;
     gfile->pos = 0;
-    gfile->meta = ( bson * )bson_malloc( sizeof( bson ) );
+    gfile->meta = bson_create_null();
     if ( gfile->meta == NULL ) return MONGO_ERROR;
     bson_copy( gfile->meta, meta );
     return MONGO_OK;
@@ -570,7 +570,7 @@ MONGO_EXPORT int gridfile_get_numchunks( gridfile *gfile ) {
 }
 
 MONGO_EXPORT void gridfile_get_chunk( gridfile *gfile, int n, bson* out ) {
-    bson query;
+    bson query = NULL_BSON;
 
     bson_iterator it;
     bson_oid_t id;
@@ -588,7 +588,7 @@ MONGO_EXPORT void gridfile_get_chunk( gridfile *gfile, int n, bson* out ) {
                              &query, NULL, out ) == MONGO_OK );
     bson_destroy( &query );
     if (!result) {
-        bson empty;
+        bson empty = NULL_BSON;
         bson_empty(&empty);
         bson_copy(out, &empty);
     }
@@ -597,10 +597,10 @@ MONGO_EXPORT void gridfile_get_chunk( gridfile *gfile, int n, bson* out ) {
 MONGO_EXPORT mongo_cursor *gridfile_get_chunks( gridfile *gfile, size_t start, size_t size ) {
     bson_iterator it;
     bson_oid_t id;
-    bson gte;
-    bson query;
-    bson orderby;
-    bson command;
+    bson gte = NULL_BSON;
+    bson query = NULL_BSON;
+    bson orderby = NULL_BSON;
+    bson command = NULL_BSON;
     mongo_cursor *cursor;
 
     bson_find( &it, gfile->meta, "_id" );
@@ -642,7 +642,7 @@ MONGO_EXPORT mongo_cursor *gridfile_get_chunks( gridfile *gfile, size_t start, s
 gridfs_offset gridfile_write_file( gridfile *gfile, FILE *stream ) {
     int i;
     size_t len;
-    bson chunk;
+    bson chunk = NULL_BSON;
     bson_iterator it;
     const char *data;
     const int num = gridfile_get_numchunks( gfile );
@@ -661,7 +661,7 @@ gridfs_offset gridfile_write_file( gridfile *gfile, FILE *stream ) {
 
 MONGO_EXPORT gridfs_offset gridfile_read( gridfile *gfile, gridfs_offset size, char *buf ) {
     mongo_cursor *chunks;
-    bson chunk;
+    bson chunk = NULL_BSON;
 
     size_t first_chunk;
     size_t last_chunk;

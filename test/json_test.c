@@ -85,7 +85,7 @@ char *json_to_bson( char *js ) {
 }
 
 int json_to_bson_test( char *js , int size , const char *hash ) {
-    bson b;
+    bson b = NULL_BSON;
     mongo_md5_state_t st;
     mongo_md5_byte_t digest[16];
     char myhash[33];

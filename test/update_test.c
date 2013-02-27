@@ -6,8 +6,8 @@
 
 int main() {
     mongo conn[1];
-    bson obj;
-    bson cond;
+    bson obj = NULL_BSON;
+    bson cond = NULL_BSON;
     int i;
     bson_oid_t oid;
     const char *col = "c.update_test";
@@ -41,7 +41,7 @@ int main() {
 
     {
         /* insert */
-        bson op;
+        bson op = NULL_BSON;
 
         bson_init( &cond );
         bson_append_oid( &cond, "_id", &oid );
