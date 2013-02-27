@@ -172,7 +172,15 @@ MONGO_EXPORT void  bson_dispose(bson* b);
  * @return the size.
  */
 MONGO_EXPORT int bson_size( const bson *b );
-MONGO_EXPORT size_t bson_buffer_size( const bson *b );
+
+/**
+ * Current position relative to the start of a BSON object.
+ *
+ * @param b the BSON object.
+ *
+ * @return the current position.
+ */
+MONGO_EXPORT size_t bson_position( const bson *b );
 
 /**
  * Print a string representation of a BSON object.
