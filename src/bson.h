@@ -159,6 +159,38 @@ typedef struct {
     int t; /* time in seconds */
 } bson_timestamp_t;
 
+/* The following macros and declarations are part of a bigger refactoring in Mongo C client
+   that adds a layer of memory protection by checking that objects are valid by adding in
+   offset zero a signature that is managed by creation/destruction functions on the API */
+   
+#ifdef MONGO_MEMORY_PROTECTION
+  #define INIT_BSON {MONGO_SIGNATURE, NULL, NULL}
+#else
+  #define INIT_BSON {NULL, NULL}
+#endif
+
+#ifdef MONGO_MEMORY_PROTECTION
+  #define INIT_ITERATOR {MONGO_SIGNATURE, NULL, 0}
+#else
+  #define INIT_ITERATOR {NULL, 0}
+#endif
+
+#define MONGO_SIGNATURE 0xFFEEFFEE
+#define MONGO_SIGNATURE_READY_TO_DISPOSE 0xFFAAFFAA
+
+static const char* SIG_MISMATCH_STR = "Object MONGO_SIGNATURE mismatch. This is likely caused by memory corruption using an uninitialized object or a destroyed object";
+
+#ifdef MONGO_MEMORY_PROTECTION
+  #define check_mongo_object(obj) bson_fatal_msg((obj) && *((int*)(obj)) == MONGO_SIGNATURE, SIG_MISMATCH_STR)
+  #define check_destroyed_mongo_object(obj) bson_fatal_msg((obj) && (*((int*)(obj)) == MONGO_SIGNATURE || *((int*)(obj)) == MONGO_SIGNATURE_READY_TO_DISPOSE), SIG_MISMATCH_STR)
+  #define ASSIGN_SIGNATURE(obj, sig) (obj)->mongo_sig = sig
+#else
+  #define check_mongo_object(obj) 
+  #define check_destroyed_mongo_object(obj) 
+  #define ASSIGN_SIGNATURE(obj, sig)
+#endif
+
+
 /* ----------------------------
    READING
    ------------------------------ */

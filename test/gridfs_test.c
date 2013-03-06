@@ -46,7 +46,7 @@ void test_gridfile( gridfs *gfs, char *data_before, int64_t length, char *filena
     char hex_digest[33];
     int64_t i = length;
     int n;
-    char *data_after = bson_malloc( LARGE );
+    char *data_after = (char*)bson_malloc( LARGE );
 
     gridfs_find_filename( gfs, filename, gfile );
     ASSERT( gridfile_exists( gfile ) );
@@ -95,7 +95,7 @@ void test_gridfile( gridfs *gfs, char *data_before, int64_t length, char *filena
 void test_basic( void ) {
     mongo conn[1];
     gridfs gfs[1];
-    char *data_before = bson_malloc( UPPER );
+    char *data_before = (char*)bson_malloc( UPPER );
     int64_t i;
     FILE *fd;
 
@@ -114,14 +114,14 @@ void test_basic( void ) {
     for ( i = LOWER; i <= UPPER; i += DELTA ) {
 
         /* Input from buffer */
-        gridfs_store_buffer( gfs, data_before, i, "input-buffer", "text/html" );
+        gridfs_store_buffer( gfs, data_before, i, "input-buffer", "text/html", 0 );
         test_gridfile( gfs, data_before, i, "input-buffer", "text/html" );
 
         /* Input from file */
         fd = fopen( "input-file", "w" );
         fwrite( data_before, sizeof( char ), i, fd );
         fclose( fd );
-        gridfs_store_file( gfs, "input-file", "input-file", "text/html" );
+        gridfs_store_file( gfs, "input-file", "input-file", "text/html", 0 );
         test_gridfile( gfs, data_before, i, "input-file", "text/html" );
     }
 
@@ -139,9 +139,10 @@ void test_streaming( void ) {
     mongo conn[1];
     gridfs gfs[1];
     gridfile gfile[1];
-    char *medium = bson_malloc( 2*MEDIUM );
-    char *small = bson_malloc( LOWER );
-    char *buf = bson_malloc( LARGE );
+    bson meta;
+    char *medium = (char*)bson_malloc( 2*MEDIUM );
+    char *small = (char*)bson_malloc( LOWER );
+    char *buf = (char*)bson_malloc( LARGE );
     int n;
 
     if( buf == NULL || small == NULL ) {
@@ -162,8 +163,10 @@ void test_streaming( void ) {
     fill_buffer_randomly( small, ( int64_t )LOWER );
     fill_buffer_randomly( buf, ( int64_t )LARGE );
 
+    bson_empty( &meta );
     gridfs_init( conn, "test", "fs", gfs );
-    gridfile_writer_init( gfile, gfs, "medium", "text/html" );
+    gridfile_init( gfs, &meta, gfile );
+    gridfile_writer_init( gfile, gfs, "medium", "text/html", 0 );
 
     gridfile_write_buffer( gfile, medium, MEDIUM );
     gridfile_write_buffer( gfile, medium + MEDIUM, MEDIUM );
@@ -173,12 +176,12 @@ void test_streaming( void ) {
 
     gridfs_init( conn, "test", "fs", gfs );
 
-    gridfs_store_buffer( gfs, small, LOWER, "small", "text/html" );
+    gridfs_store_buffer( gfs, small, LOWER, "small", "text/html", 0 );
     test_gridfile( gfs, small, LOWER, "small", "text/html" );
     gridfs_destroy( gfs );
 
     gridfs_init( conn, "test", "fs", gfs );
-    gridfile_writer_init( gfile, gfs, "large", "text/html" );
+    gridfile_writer_init( gfile, gfs, "large", "text/html", 0 );
     for( n=0; n < ( LARGE / 1024 ); n++ ) {
         gridfile_write_buffer( gfile, buf + ( n * 1024 ), 1024 );
     }
@@ -198,7 +201,7 @@ void test_large( void ) {
     gridfile gfile[1];
     FILE *fd;
     int i, n;
-    char *buffer = bson_malloc( LARGE );
+    char *buffer = (char*)bson_malloc( LARGE );
     int64_t filesize = ( int64_t )1024 * ( int64_t )LARGE;
 
     srand( time( NULL ) );
@@ -221,7 +224,7 @@ void test_large( void ) {
     fclose( fd );
 
     /* Now read the file into GridFS */
-    gridfs_store_file( gfs, "bigfile", "bigfile", "text/html" );
+    gridfs_store_file( gfs, "bigfile", "bigfile", "text/html", 0 );
 
     gridfs_find_filename( gfs, "bigfile", gfile );
 
@@ -229,7 +232,7 @@ void test_large( void ) {
     ASSERT( gridfile_get_contentlength( gfile ) ==  filesize );
 
     /* Read the file using the streaming interface */
-    gridfile_writer_init( gfile, gfs, "bigfile-stream", "text/html" );
+    gridfile_writer_init( gfile, gfs, "bigfile-stream", "text/html", 0 );
 
     fd = fopen( "bigfile", "r" );
 
@@ -250,12 +253,8 @@ void test_large( void ) {
 }
 
 int main( void ) {
-/* See https://jira.mongodb.org/browse/CDRIVER-126
- * on why we exclude this test from running on WIN32 */
-#ifndef _WIN32
     test_basic();
     test_streaming();
-#endif
 
     /* Normally not necessary to run test_large(), as it
      * deals with very large (3GB) files and is therefore slow.

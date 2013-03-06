@@ -671,7 +671,7 @@ int bson_ensure_space( bson *b, const size_t bytesNeeded ) {
     char *orig = b->data;
     int new_size;
 
-    if ( pos + bytesNeeded <= b->dataSize )
+    if ( pos + bytesNeeded <= (size_t)b->dataSize )
         return BSON_OK;
 
     new_size = 1.5 * ( b->dataSize + bytesNeeded );
