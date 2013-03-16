@@ -160,6 +160,10 @@ MONGO_EXPORT void bson_oid_gen( bson_oid_t *oid ) {
     static int fuzz = 0;
     int i;
     time_t t = time( NULL );
+    int ti;
+
+    if( sizeof (time_t) != 4 )
+    	ti = (int) ( t & INT32_MAX );
 
     if( oid_inc_func )
         i = oid_inc_func();
@@ -170,20 +174,26 @@ MONGO_EXPORT void bson_oid_gen( bson_oid_t *oid ) {
         if ( oid_fuzz_func )
             fuzz = oid_fuzz_func();
         else {
-            srand( ( int )t );
+            srand( ( sizeof( time_t ) == 4 ) ? (int) t : ti);
             fuzz = rand();
         }
     }
 
-    bson_big_endian32( &oid->ints[0], &t );
+    bson_big_endian32( &oid->ints[0], ( sizeof( time_t ) == 4) ? (void *) &t : (void *) &ti );
     oid->ints[1] = fuzz;
     bson_big_endian32( &oid->ints[2], &i );
 }
 
 MONGO_EXPORT time_t bson_oid_generated_time( bson_oid_t *oid ) {
     time_t out;
-    bson_big_endian32( &out, &oid->ints[0] );
-
+    if ( sizeof( time_t ) == 4 )
+    	bson_big_endian32( &out, &oid->ints[0] );
+    else
+    {
+    	int i;
+    	bson_big_endian32( &i, &oid->ints[0] );
+    	out = (time_t) i;
+    }
     return out;
 }
 

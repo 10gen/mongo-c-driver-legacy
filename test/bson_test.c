@@ -32,6 +32,9 @@ int test_bson_generic( void ) {
 
    bson_append_undefined( b, "u" );
 
+   bson_oid_gen( &oid );
+   ASSERT( ( time(NULL) - bson_oid_generated_time(&oid) ) <= 5 );
+
    bson_oid_from_string( &oid, "010203040506070809101112" );
    ASSERT( !memcmp( oid.bytes, "\x001\x002\x003\x004\x005\x006\x007\x008\x009\x010\x011\x012", 12 ) );
    bson_append_oid( b, "oid", &oid );
