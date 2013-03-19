@@ -847,11 +847,11 @@ static void gridfile_flush_pendingchunk(gridfile *gfile) {
     gridfile_prepare_chunk_key_bson( &q, &gfile->id, gfile->chunk_num );    
     mongo_update(gfile->gfs->client, gfile->gfs->chunks_ns, &q, oChunk, MONGO_UPDATE_UPSERT, NULL);
     bson_destroy(&q);
-    chunk_free(oChunk);
-    gfile->chunk_num++;
-    if (gfile->pos > gfile->length) {
-      gfile->length = gfile->pos;
+    chunk_free(oChunk);    
+    if((gfile->chunk_num * gfile->chunkSize) + gfile->pending_len > gfile->length) {
+      gfile->length = (gfile->chunk_num * gfile->chunkSize) + gfile->pending_len;
     }
+    gfile->chunk_num++;
     gfile->pending_len = 0;
   }
   if( targetBuf && targetBuf != gfile->pending_data ) {
