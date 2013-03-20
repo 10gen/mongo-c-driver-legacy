@@ -515,7 +515,11 @@ MONGO_EXPORT int gridfile_init(gridfs *gfs, bson *meta, gridfile *gfile){
   gfile->meta = (bson*)bson_malloc(sizeof(bson));
   if (gfile->meta == NULL) {
     return MONGO_ERROR;
-  } bson_copy(gfile->meta, meta);
+  } if( meta ) { 
+    bson_copy(gfile->meta, meta);
+  } else {
+    bson_empty(gfile->meta);
+  }
   gridfile_init_chunkSize( gfile );
   gridfile_init_length( gfile );
   gridfile_init_flags( gfile );
@@ -948,10 +952,10 @@ MONGO_EXPORT void gridfile_write_buffer(gridfile *gfile, const char *data, gridf
   /* Finally, if there's still remaining bytes left to write, we will preload the current chunk and merge the 
      remaining bytes into pending_data buffer */
   if ( bytes_left > 0 ) {
-    if( gfile->pos + bytes_left < gfile->length ) {
-      gridfile_load_pending_data_with_pos_chunk(gfile);
+    if( !gfile->pending_len && gfile->pos + bytes_left < gfile->length ) {
+      gridfile_load_pending_data_with_pos_chunk( gfile );
     }
-    memcpy(gfile->pending_data, data, (size_t) bytes_left);
+    memcpy( gfile->pending_data, data, (size_t) bytes_left );
     if(  bytes_left > gfile->pending_len ) {
       gfile->pending_len = (int) bytes_left;
     }

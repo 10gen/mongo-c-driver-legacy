@@ -48,18 +48,23 @@ void test_gridfile( gridfs *gfs, char *data_before, int64_t length, char *filena
     int n;
     char *data_after = (char*)bson_malloc( LARGE );
 
+    gridfile_init (gfs, NULL, gfile );
     gridfs_find_filename( gfs, filename, gfile );
     ASSERT( gridfile_exists( gfile ) );
+
+    stream = fopen( "output_2", "w+" );
+    fwrite( data_before, sizeof(char), length, stream );
+    fclose(stream);
 
     stream = fopen( "output", "w+" );
     gridfile_write_file( gfile, stream );
     fseek( stream, 0, SEEK_SET );
     ASSERT( fread( data_after, length, sizeof( char ), stream ) );
     fclose( stream );
-    ASSERT( strncmp( data_before, data_after, length ) == 0 );
+    ASSERT( memcmp( data_before, data_after, length ) == 0 );
 
     gridfile_read( gfile, length, data_after );
-    ASSERT( strncmp( data_before, data_after, length ) == 0 );
+    ASSERT( memcmp( data_before, data_after, length ) == 0 );
 
     ASSERT( strcmp( gridfile_get_filename( gfile ), filename ) == 0 );
 
@@ -252,9 +257,68 @@ void test_large( void ) {
     free( buffer );
 }
 
+void test_random_access( void ) {
+    mongo conn[1];
+    gridfs gfs[1];
+    gridfile gfile[1];
+    bson meta;
+    char *buf = (char*)bson_malloc( LARGE );
+    char *zeroedbuf = (char*)bson_malloc( LARGE );
+    int n;
+
+    if( buf == NULL ) {
+        printf( "Failed to allocate" );
+        exit( 1 );
+    }
+
+    srand( 123 ); // Init with a predictable value
+
+    INIT_SOCKETS_FOR_WINDOWS;
+
+    if ( mongo_client( conn , TEST_SERVER, 27017 ) ) {
+        printf( "failed to connect 3\n" );
+        exit( 1 );
+    }
+
+    fill_buffer_randomly( buf, ( int64_t )LARGE );
+    for(n = 0; n < LARGE; n++) {
+      zeroedbuf[n] = 0;
+    }
+
+    bson_empty( &meta );
+
+    gridfs_init( conn, "test", "fs", gfs );
+
+    /* This portion of the test we will write zeroes by using new API gridfile_set_size */
+    gridfile_init( gfs, &meta, gfile );
+    gridfile_writer_init( gfile, gfs, "random_access", "text/html", 0 );
+    gridfile_set_size( gfile, LARGE ); // New API, this zero fills the file. Let's verify
+    gridfile_writer_done( gfile );    
+
+    /* Let's re-create the file, now let's randomly write real data */
+    gridfile_init( gfs, &meta, gfile );
+    gridfile_writer_init( gfile, gfs, "random_access", "text/html", 0 );   
+
+    /* Here we will write backwards the file with our random numbers. We will use a 3072 size buffer to cross over buffers
+       given the fact 256K is not a multiple of 3072. Stress the buffering logic a little bit */
+    for( n = LARGE / 3072 - 1; n >= 0; n-- ) {
+        gridfile_seek( gfile, 3072 * n );
+        gridfile_write_buffer( gfile, buf + ( n * 3072 ), 3072 );
+    }
+    gridfile_writer_done( gfile );
+    test_gridfile( gfs, buf, LARGE, "random_access", "text/html" );
+
+    gridfs_destroy( gfs );
+    mongo_destroy( conn );
+
+    free( buf );
+    free( zeroedbuf );
+}
+
 int main( void ) {
     test_basic();
     test_streaming();
+    test_random_access();
 
     /* Normally not necessary to run test_large(), as it
      * deals with very large (3GB) files and is therefore slow.
