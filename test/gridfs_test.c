@@ -281,26 +281,35 @@ void test_random_access( void ) {
     }
 
     fill_buffer_randomly( buf, ( int64_t )LARGE );
-    for(n = 0; n < LARGE; n++) {
-      zeroedbuf[n] = 0;
-    }
+    memset( zeroedbuf, 0, LARGE ); 
 
     bson_empty( &meta );
 
     gridfs_init( conn, "test", "fs", gfs );
 
-    /* This portion of the test we will write zeroes by using new API gridfile_set_size */
+    /* This portion of the test we will write zeroes by using new API gridfile_set_size
+       function gridfile_expand tested implicitally by using gridfile_set_size making file larger */
     gridfile_init( gfs, &meta, gfile );
     gridfile_writer_init( gfile, gfs, "random_access", "text/html", 0 );
-    gridfile_set_size( gfile, LARGE ); // New API, this zero fills the file. Let's verify
+    gridfile_set_size( gfile, LARGE ); // New API, this zero fills the file
     gridfile_writer_done( gfile );    
+    test_gridfile( gfs, zeroedbuf, LARGE, "random_access", "text/html" ); // Test zero filled file
+
+    /* This portion of the test we will write zeroes by using new API gridfile_set_size then we will truncate the file */
+    gridfile_init( gfs, &meta, gfile );
+    gridfile_writer_init( gfile, gfs, "random_access", "text/html", 0 );
+    gridfile_set_size( gfile, LARGE ); // New API, this zero fills the file with LARGE bytes
+    gridfile_truncate( gfile, LARGE / 2 ); // Let's truncate the file now
+    gridfile_writer_done( gfile );    
+    test_gridfile( gfs, zeroedbuf, LARGE / 2, "random_access", "text/html" ); // Test zero filled file truncated by half
 
     /* Let's re-create the file, now let's randomly write real data */
     gridfile_init( gfs, &meta, gfile );
     gridfile_writer_init( gfile, gfs, "random_access", "text/html", 0 );   
+    gridfile_set_size( gfile, LARGE ); // We need to reserve LARGE bytes on file before writing backwards
 
     /* Here we will write backwards the file with our random numbers. We will use a 3072 size buffer to cross over buffers
-       given the fact 256K is not a multiple of 3072. Stress the buffering logic a little bit */
+       given the fact 256K is not a multiple of 3072. Let's stress the buffering logic a little bit */
     for( n = LARGE / 3072 - 1; n >= 0; n-- ) {
         gridfile_seek( gfile, 3072 * n );
         gridfile_write_buffer( gfile, buf + ( n * 3072 ), 3072 );

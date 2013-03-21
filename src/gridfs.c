@@ -683,7 +683,8 @@ MONGO_EXPORT bson_oid_t *gridfile_get_id(gridfile *gfile) {
 
 MONGO_EXPORT bson_bool_t gridfile_exists(gridfile *gfile) {
   check_mongo_object( gfile );
-  return (bson_bool_t)(gfile != NULL || gfile->meta == NULL);
+  /* File exists if gfile and gfile->meta BOTH are != NULL */
+  return (bson_bool_t)(gfile != NULL && gfile->meta != NULL);
 }
 
 MONGO_EXPORT const char *gridfile_get_filename(gridfile *gfile) {
@@ -952,6 +953,9 @@ MONGO_EXPORT void gridfile_write_buffer(gridfile *gfile, const char *data, gridf
   /* Finally, if there's still remaining bytes left to write, we will preload the current chunk and merge the 
      remaining bytes into pending_data buffer */
   if ( bytes_left > 0 ) {
+    /* Let's preload the chunk we are writing IF the current chunk is not already in memory
+       AND if after writing the remaining buffer there's should be trailing data that we don't
+       want to loose */ 
     if( !gfile->pending_len && gfile->pos + bytes_left < gfile->length ) {
       gridfile_load_pending_data_with_pos_chunk( gfile );
     }
