@@ -63,7 +63,10 @@ static int ( *oid_inc_func )( void )  = NULL;
    ------------------------------ */
 
 MONGO_EXPORT bson* bson_create( void ) {
-    return (bson*)bson_malloc(sizeof(bson));
+    bson* b = (bson*)bson_malloc(sizeof(bson));
+    b->ownsData = 0;
+    b->stackPtr = NULL;
+    return b;
 }
 
 MONGO_EXPORT void bson_dispose(bson* b) {

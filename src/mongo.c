@@ -665,7 +665,9 @@ MONGO_EXPORT int mongo_replica_set_client( mongo *conn ) {
 
                 /* Primary found, so return. */
                 else if( conn->replica_set->primary_connected ) {
-                    conn->primary = bson_malloc( sizeof( mongo_host_port ) );
+                    if( conn->primary == NULL ) {
+                      conn->primary = (mongo_host_port*)bson_malloc( sizeof( mongo_host_port ) );
+                    }                    
                     strncpy( conn->primary->host, node->host, strlen( node->host ) + 1 );
                     conn->primary->port = node->port;
                     return MONGO_OK;
