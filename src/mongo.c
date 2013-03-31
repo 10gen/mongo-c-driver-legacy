@@ -807,7 +807,7 @@ static int mongo_cursor_bson_valid( mongo_cursor *cursor, const bson *bson ) {
 
 static int mongo_check_last_error( mongo *conn, const char *ns,
                                    mongo_write_concern *write_concern ) {
-    bson response = {NULL, 0};
+    bson response = INIT_BSON;
     bson_iterator it;
     int res = 0;
     char *cmd_ns = mongo_ns_to_cmd_db( ns );
@@ -1546,7 +1546,7 @@ MONGO_EXPORT int mongo_create_capped_collection( mongo *conn, const char *db,
 
 MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll, const bson *query ) {
     bson cmd;
-    bson out = {NULL, 0};
+    bson out = INIT_BSON;
     double count = -1;
 
     bson_init( &cmd );
@@ -1572,7 +1572,7 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll, 
 
 MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, const bson *command,
                                     bson *out ) {
-    bson response = {NULL, 0};
+    bson response = INIT_BSON;
     bson_iterator it;
     size_t sl = strlen( db );
     char *ns = bson_malloc( sl + 5 + 1 ); /* ".$cmd" + nul */
@@ -1650,7 +1650,7 @@ MONGO_EXPORT void mongo_cmd_reset_error( mongo *conn, const char *db ) {
 static int mongo_cmd_get_error_helper( mongo *conn, const char *db,
                                        bson *realout, const char *cmdtype ) {
 
-    bson out = {NULL,0};
+    bson out = INIT_BSON;
     bson_bool_t haserror = 0;
 
     /* Reset last error codes. */
@@ -1683,7 +1683,7 @@ MONGO_EXPORT int mongo_cmd_get_last_error( mongo *conn, const char *db, bson *ou
 }
 
 MONGO_EXPORT bson_bool_t mongo_cmd_ismaster( mongo *conn, bson *realout ) {
-    bson out = {NULL,0};
+    bson out = INIT_BSON;
     bson_bool_t ismaster = 0;
 
     if ( mongo_simple_int_command( conn, "admin", "ismaster", 1, &out ) == MONGO_OK ) {

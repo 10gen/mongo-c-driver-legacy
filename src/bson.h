@@ -148,7 +148,7 @@ typedef struct {
     int stackSize;        /**< Number of elements in the current stack */
 } bson;
 
-#define INIT_BSON {NULL, NULL}
+#define INIT_BSON {NULL, NULL, 0, 0, 0, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 0, 0, NULL, 0}
 
 #pragma pack(1)
 typedef union {
