@@ -1312,24 +1312,19 @@ MONGO_EXPORT mongo_cursor *mongo_find( mongo *conn, const char *ns, const bson *
 MONGO_EXPORT int mongo_find_one( mongo *conn, const char *ns, const bson *query,
                                  const bson *fields, bson *out ) {
 
+    int errors_exists = 0;
     mongo_cursor cursor[1];
     mongo_cursor_init( cursor, conn, ns );
     mongo_cursor_set_query( cursor, query );
     mongo_cursor_set_fields( cursor, fields );
     mongo_cursor_set_limit( cursor, 1 );
 
-    if( mongo_cursor_next( cursor ) != MONGO_OK ) {
-        mongo_cursor_destroy( cursor );
-        return MONGO_ERROR;
-    }
+    errors_exists = ( mongo_cursor_next( cursor ) != MONGO_OK );    
 
-    if( out && bson_copy( out, &cursor->current ) != MONGO_OK ) {
-        mongo_cursor_destroy( cursor );
-        return MONGO_ERROR;
-    }
+    if( !errors_exists && out && bson_copy( out, &cursor->current ) != MONGO_OK ) errors_exists = 1;           
 
     mongo_cursor_destroy( cursor );
-    return MONGO_OK;
+    return errors_exists ? MONGO_ERROR : MONGO_OK;
 }
 
 MONGO_EXPORT void mongo_cursor_init( mongo_cursor *cursor, mongo *conn, const char *ns ) {
