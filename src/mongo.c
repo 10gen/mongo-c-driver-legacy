@@ -959,6 +959,34 @@ MONGO_EXPORT int mongo_insert_batch( mongo *conn, const char *ns,
     return mongo_message_send_and_check_write_concern( conn, ns, mm, write_concern ); 
 }
 
+MONGO_EXPORT int mongo_fast_with_write_concern( mongo *conn, const char* ns,
+						const char* data, size_t size,
+						mongo_write_concern *custom_write_concern ){
+    mongo_write_concern *write_concern = NULL;
+    int res;
+
+    if( size > (size_t) conn->max_bson_size ) {
+        conn->err = MONGO_BSON_TOO_LARGE;
+        return MONGO_ERROR;
+    }
+
+    if( mongo_choose_write_concern( conn, custom_write_concern,
+                                    &write_concern ) == MONGO_ERROR ) {
+        return MONGO_ERROR;
+    }
+
+    if (write_concern){
+	    res = mongo_env_write_socket( conn, data, size );
+	    if( res != MONGO_OK ) {
+	        return res;
+	    }
+
+	    return mongo_check_last_error( conn, ns, write_concern );
+    }
+
+    return mongo_env_write_socket( conn, data, size );    
+}
+
 MONGO_EXPORT int mongo_update( mongo *conn, const char *ns, const bson *cond,
                                const bson *op, int flags, mongo_write_concern *custom_write_concern ) {
 
