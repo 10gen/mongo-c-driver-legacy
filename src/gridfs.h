@@ -28,6 +28,23 @@ enum {DEFAULT_CHUNK_SIZE = 256 * 1024};
 
 typedef uint64_t gridfs_offset;
 
+typedef int ( *gridfs_chunk_filter_func )( void* context, char** targetBuf, size_t* targetLen, const char* srcBuf, size_t srcLen, int flags );
+typedef size_t ( *gridfs_pending_data_size_func ) (void* context, int flags);
+typedef void ( *gridfs_reset_context_func)(void* context, int flags);
+
+#define FILTER_CONTEXT_CALLBACKS \
+  gridfs_chunk_filter_func read_filter; \
+  gridfs_chunk_filter_func write_filter; \
+  gridfs_pending_data_size_func pending_data_buffer_size; \
+  gridfs_reset_context_func reset_context 
+
+typedef struct {
+  /* Callback pointers */
+  FILTER_CONTEXT_CALLBACKS;  
+  /* Users of context will be able to extend this structure beyond this point with anything they like.
+     This will be useful for encryption context data */
+} filterContext;
+
 /* A GridFS represents a single collection of GridFS files in the database. */
 typedef struct {
     mongo *client; /**> The client to db-connection. */
@@ -36,6 +53,7 @@ typedef struct {
     const char *files_ns; /**> The namespace where the file's metadata is stored */
     const char *chunks_ns; /**. The namespace where the files's data is stored in chunks */
     bson_bool_t caseInsensitive; /**. If true then files are matched in case insensitive fashion */
+    filterContext* default_filter_context; /**> Pointer to the default filter context object */
 } gridfs;
 
 /* A GridFile is a single GridFS file. */
@@ -51,7 +69,8 @@ typedef struct {
     char *pending_data; /**> A buffer storing data still to be written to chunks */
     size_t pending_len;    /**> Length of pending_data buffer */
     int flags;          /**> Store here special flags such as: No MD5 calculation and Zlib Compression enabled*/
-    int chunkSize;   /**> Let's cache here the cache size to avoid accesing it on the Meta mongo object every time is needed */
+    int chunkSize;   /**> Let's cache here the cache size to avoid accesing it on the Meta mongo object every time is needed */    
+    filterContext* filter_context;
 } gridfile;
 
 enum gridfile_storage_type {
@@ -66,15 +85,17 @@ char *_strupr(char *str);
 char *_strlwr(char *str);
 #endif
 
-typedef int ( *gridfs_chunk_filter_func )( char** targetBuf, size_t* targetLen, const char* srcBuf, size_t srcLen, int flags );
-typedef size_t ( *gridfs_pending_data_size_func ) (int flags);
-
 MONGO_EXPORT gridfs* gridfs_alloc( void );
 MONGO_EXPORT void gridfs_dealloc(gridfs* gfs);
 MONGO_EXPORT gridfile* gridfile_create( void );
 MONGO_EXPORT void gridfile_dealloc(gridfile* gf);
 MONGO_EXPORT void gridfile_get_descriptor(gridfile* gf, bson* out);
-MONGO_EXPORT void gridfs_set_chunk_filter_funcs(gridfs_chunk_filter_func writeFilter, gridfs_chunk_filter_func readFilter, gridfs_pending_data_size_func pendingDataNeededSize);
+
+/* ++++++++++++ */
+/* WARNING using set_global_filter_context. use only a global filter object in single-threaded applications.
+   Using a global_filter context objects MAY not be thread safe depending on what you do on the filter functions */
+MONGO_EXPORT void set_global_filter_context( filterContext* context );
+/* ++++++++++++ */
 
 /**
  *  Initializes a GridFS object
@@ -112,6 +133,17 @@ MONGO_EXPORT int gridfile_init( gridfs *gfs, const bson *meta, gridfile *gfile )
  *  @param oGridFIle - the GridFile being destroyed
  */
 MONGO_EXPORT void gridfile_destroy( gridfile *gfile );
+
+/**
+ *  Sets a default filtering context object. The context object MUST provide valid
+ *  callback pointers to filtering, datapending, free_context and reset functions.
+ *  Operations that implicitly create gridfile objects will set the context to this object
+ *  and before starting I/O operations will call the reset_context() callback
+ *  @param gfs - GridFS pointer
+ *  @param context - filterContext default object
+ *
+ */
+MONGO_EXPORT void gridfs_set_default_context( gridfs *gfs, filterContext* context );
 
 /**
  *  Initializes a gridfile for writing incrementally with gridfs_write_buffer.
@@ -204,6 +236,13 @@ MONGO_EXPORT int gridfs_find_query( gridfs *gfs, const bson *query, gridfile *gf
  *  @return MONGO_OK or MONGO_ERROR.
  */
 MONGO_EXPORT int gridfs_find_filename( gridfs *gfs, const char *filename, gridfile *gfile );
+
+/**
+ *  Returns whether or not the GridFile exists
+ *  @param gfile - the GridFile to which the filterContext is going to be set
+ *  @param context - the filter context associated with the GridFile object
+ */
+MONGO_EXPORT void gridfile_set_filter_context( gridfile *gfile, filterContext* context );
 
 /**
  *  Returns whether or not the GridFile exists
