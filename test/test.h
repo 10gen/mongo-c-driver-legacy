@@ -50,8 +50,7 @@ int mongo_get_server_version( char *version ) {
 
     if( mongo_run_command( conn, "admin", cmd, out ) == MONGO_ERROR ) {
         ret = -1;
-    }
-    else {
+    }else{
         bson_iterator_init( it, out );
         result = bson_iterator_string( it );
 
@@ -60,7 +59,7 @@ int mongo_get_server_version( char *version ) {
     }
     bson_destroy( cmd );
     mongo_destroy( conn );
-    return 0;
+    return ret;
 }
 
 MONGO_EXTERN_C_END
