@@ -473,6 +473,28 @@ MONGO_EXPORT int mongo_insert_batch( mongo *conn, const char *ns,
                                      int flags );
 
 /**
+ * Sends a BSON document to a MongoDB server. This function will perform
+ * minimal checking and expects the data argument to be a fully formed
+ * mongodb request including header and all other required fields. This 
+ * function omits various checks and calls and can enable higher write
+ * performance at the cost of doing more work in the calling application.
+ *
+ * The default write concern set on the conn object will be used.
+ *
+ * @param conn a mongo object.
+ * @param ns the namespace.
+ * @param data the data to send..
+ * @param size data length.
+ * @param custom_write_concern a write concern object that will
+ *     override any write concern set on the conn object.
+ *
+ * @return MONGO_OK or MONGO_ERROR.
+ *
+ */
+MONGO_EXPORT int mongo_fast_with_write_concern( mongo *conn, const char* ns,
+						const char* data, size_t size,
+						mongo_write_concern *custom_write_concern );
+/**
  * Update a document in a MongoDB server.
  *
  * The default write concern set on the conn object will be used.

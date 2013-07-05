@@ -34,7 +34,7 @@ TESTS=test_auth test_bcon test_bson test_bson_subobject test_connect test_count_
   test_cursors test_endian_swap test_errors test_examples \
   test_functions test_gridfs test_helpers \
   test_oid test_resize test_simple test_sizes test_update \
-  test_validate test_write_concern test_commands
+  test_validate test_write_concern test_commands test_fast
 MONGO_OBJECTS=src/bcon.o src/bson.o src/encoding.o src/gridfs.o src/md5.o src/mongo.o \
  src/numbers.o
 BSON_OBJECTS=src/bcon.o src/bson.o src/numbers.o src/encoding.o

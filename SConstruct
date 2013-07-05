@@ -265,7 +265,7 @@ benchmarkEnv.Append( CPPDEFINES=[('TEST_SERVER', r'\"%s\"'%GetOption('test_serve
 ('SEED_START_PORT', r'%d'%GetOption('seed_start_port'))] )
 benchmarkEnv.Append( LIBS=[m, b] )
 benchmarkEnv.Prepend( LIBPATH=["."] )
-benchmarkEnv.Program( "benchmark" ,  [ "test/benchmark.c"] )
+benchmarkEnv.Program( "benchmark" ,  [ "test/benchmark_test.c"] )
 
 # ---- Tests ----
 testEnv = benchmarkEnv.Clone()
@@ -280,7 +280,7 @@ def run_tests( root, tests, env, alias ):
         AlwaysBuild(test_alias)
 
 tests = Split("write_concern commands sizes resize endian_swap bson_alloc bson bson_subobject simple update errors "
-"count_delete auth gridfs validate examples helpers oid functions cursors")
+"count_delete auth gridfs validate examples helpers oid functions cursors fast")
 if os.sys.platform != 'win32':
     tests.append("bcon")
 tests += PLATFORM_TESTS
