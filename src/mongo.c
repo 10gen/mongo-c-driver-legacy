@@ -1499,7 +1499,7 @@ MONGO_EXPORT int mongo_create_index( mongo *conn, const char *ns, const bson *ke
     if ( options & MONGO_INDEX_SPARSE )
         bson_append_bool( &b, "sparse", 1 );
 	
-    if( ttl > 0 )
+    if( ttl >= 0 )
         bson_append_int( &b, "expireAfterSeconds", ttl );
 
     bson_finish( &b );

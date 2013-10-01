@@ -693,6 +693,9 @@ MONGO_EXPORT double mongo_count( mongo *conn, const char *db, const char *coll,
  * @param options a bitfield for setting index options. Possibilities include
  *   MONGO_INDEX_UNIQUE, MONGO_INDEX_DROP_DUPS, MONGO_INDEX_BACKGROUND,
  *   and MONGO_INDEX_SPARSE.
+ * @ttl Pass -1 to create a normal index. If >= 0, this will be a TTL index,
+ *   and mongo will automatically remove documents from the collection.
+ *   See http://docs.mongodb.org/manual/tutorial/expire-data/
  * @param out a bson document containing errors, if any.
  *
  * @return MONGO_OK if index is created successfully; otherwise, MONGO_ERROR.
