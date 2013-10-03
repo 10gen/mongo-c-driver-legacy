@@ -1048,7 +1048,7 @@ MONGO_EXPORT void mongo_write_concern_init( mongo_write_concern *write_concern )
 MONGO_EXPORT int mongo_write_concern_finish( mongo_write_concern *write_concern ) {
     bson *command;
 
-    /* Destory any existing serialized write concern object and reuse it. */
+    /* Destroy any existing serialized write concern object and reuse it. */
     if( write_concern->cmd ) {
         bson_destroy( write_concern->cmd );
         command = write_concern->cmd;
