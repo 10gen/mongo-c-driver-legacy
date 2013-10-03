@@ -1268,8 +1268,7 @@ static int mongo_cursor_get_more( mongo_cursor *cursor ) {
 
         bson_free( cursor->reply );
         res = mongo_message_send( cursor->conn, mm );
-        if( res != MONGO_OK ) {
-            mongo_cursor_destroy( cursor );
+        if( res != MONGO_OK ) {            
             return MONGO_ERROR;
         }
 
