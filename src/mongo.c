@@ -1751,7 +1751,7 @@ MONGO_EXPORT int mongo_cmd_add_user( mongo *conn, const char *db, const char *us
 
     res = mongo_pass_digest( conn, user, pass, hex_digest );
     if (res != MONGO_OK) {
-        free(ns);
+        bson_free(ns);
         return res;
     }
 
