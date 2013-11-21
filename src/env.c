@@ -212,10 +212,64 @@ MONGO_EXPORT int mongo_env_sock_init( void ) {
 #include <netinet/tcp.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
+#include <poll.h>
 
 #ifndef NI_MAXSERV
 # define NI_MAXSERV 32
 #endif
+
+static int
+set_blocking(int sock)
+{
+	int i = 0;
+	return ioctl(sock, FIONBIO, &i);
+}
+
+static int
+set_nonblocking(int sock)
+{
+	int i = 1;
+	return ioctl(sock, FIONBIO, &i);
+}
+
+
+static int
+connect_with_timeout(int s, const void* sockaddr,int len, int msec)
+{
+	int result,error;
+	socklen_t l;
+	struct pollfd fds[1];
+
+	if (msec > 0)
+		(void)set_nonblocking(s);
+
+	result = connect(s, sockaddr, len);
+	if (result == 0 || errno != EINPROGRESS)
+		return result;
+
+	fds[0].fd = s;
+	fds[0].events = POLLWRNORM;
+	fds[0].revents = 0;
+	result = poll(fds, 1, msec);
+
+	if (result == 0) {
+		errno = ETIMEDOUT;
+		return -1;
+	}
+
+	l = sizeof error;
+	getsockopt(s, SOL_SOCKET, SO_ERROR, &error, &l);
+
+	errno = error;
+	if (error)
+		return -1;
+
+	(void)set_blocking(s);
+	return (0);
+	
+}
+
 
 int mongo_env_close_socket( SOCKET socket ) {
     return close( socket );
@@ -349,7 +403,7 @@ int mongo_env_socket_connect( mongo *conn, const char *host, int port ) {
             continue;
         }
         
-        status = connect( conn->sock, ai_ptr->ai_addr, ai_ptr->ai_addrlen );
+        status = connect_with_timeout( conn->sock, ai_ptr->ai_addr, ai_ptr->ai_addrlen, conn->conn_timeout_ms);
         if ( status != 0 ) {
             mongo_env_close_socket( conn->sock );
             conn->sock = 0;
