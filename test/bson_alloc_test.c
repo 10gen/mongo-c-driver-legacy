@@ -94,6 +94,32 @@ int test_bson_init_finished( void ) {
     return 0;
 }
 
+int test_bson_init_finished_size( void ) {
+    bson b;
+    ALLOW_AND_REQUIRE_MALLOC_BEGIN;
+    bson_init( &b );
+    ALLOW_AND_REQUIRE_MALLOC_END;
+    bson_append_double( &b, "d", 3.14 );
+    bson_append_string( &b, "s", "hello" );
+    bson_finish( &b );
+
+    bson b2;
+    int res;
+    res = bson_init_finished_data_size( &b2, (char *) bson_data( &b ), bson_size( &b ), 0 );
+    ASSERT( res == MONGO_OK );
+    bson_destroy( &b2 );
+
+    res = bson_init_finished_data_size( &b2, (char *) bson_data( &b ), bson_size( &b ) + 1, 0 );
+    ASSERT( res == MONGO_OK );
+    bson_destroy( &b2 );
+
+    res = bson_init_finished_data_size( &b2, (char *) bson_data( &b ), bson_size( &b ) - 1, 0 );
+    ASSERT( res == MONGO_ERROR );
+    bson_destroy( &b2 );
+
+    return 0;
+}
+
 int main() {
   bson_malloc_func = malloc_for_tests;
   bson_realloc_func = realloc_for_tests;
@@ -101,6 +127,7 @@ int main() {
 
   test_bson_empty();
   test_bson_init_finished();
+  test_bson_init_finished_size();
 
   return 0;
 }
