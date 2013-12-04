@@ -213,6 +213,23 @@ MONGO_EXPORT void bson_dealloc( bson* b );
 MONGO_EXPORT int bson_init_finished_data( bson *b, char *data, bson_bool_t ownsData );
 
 /**
+ * Initialize a BSON object for reading and set its data
+ * pointer to the provided char*. Additionaly do size check for
+ * data buffer.
+ *
+ * @note When done using the bson object, you must pass
+ *      the object to bson_destroy( ).
+ *
+ * @param b the BSON object to initialize.
+ * @param data the finalized raw BSON data.
+ * @param dataSize the size of data buffer (BSON object size must be less or equals to it)
+ * @param ownsData when true, bson_destroy() will free the data block.
+ *
+ * @return BSON_OK or BSON_ERROR.
+ */
+MONGO_EXPORT int bson_init_finished_data_size( bson *b, char *data, int dataSize, bson_bool_t ownsData );
+
+/**
  * Initialize a BSON object for reading and copy finalized
  * BSON data from the provided char*.
  *

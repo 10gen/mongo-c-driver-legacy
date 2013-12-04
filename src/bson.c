@@ -90,6 +90,21 @@ int bson_init_finished_data( bson *b, char *data, bson_bool_t ownsData ) {
     return BSON_OK;
 }
 
+int bson_init_finished_data_size( bson *b, char *data, int dataSize, bson_bool_t ownsData ) {
+    // check size
+    if ( dataSize < 4 ) { // 32 bits for size
+        return BSON_ERROR;
+    }
+
+    int bsonDataSize = bson_finished_data_size( data );
+    if ( bsonDataSize > dataSize ) {
+        return BSON_ERROR;
+    }
+
+    // pass to classic initializer
+    return bson_init_finished_data(b, data, ownsData);
+}
+
 int bson_init_finished_data_with_copy( bson *b, const char *data ) {
     int dataSize = bson_finished_data_size( data );
     if ( bson_init_size( b, dataSize ) == BSON_ERROR ) return BSON_ERROR;
