@@ -231,7 +231,7 @@ static int bson_append_string_uppercase( bson *b, const char *name, const char *
   }
 }
 
-static int gridfs_insert_file(gridfs *gfs, const char *name, const bson_oid_t id, gridfs_offset length, const char *contenttype, int flags, int chunkSize) {
+static int gridfs_insert_file(gridfs *gfs, const char *name, const bson_oid_t id, gridfs_offset length, const char *contenttype, int flags, int chunkSize, bson *meta) {
   bson command[1];
   bson ret[1];
   bson res[1];
@@ -277,6 +277,7 @@ static int gridfs_insert_file(gridfs *gfs, const char *name, const bson_oid_t id
     bson_append_string(ret, "realFilename", name);
   }
   bson_append_int(ret, "flags", flags);
+  bson_append_bson(ret, "metadata", meta);
   bson_finish(ret);
 
   bson_init(q);
@@ -480,7 +481,14 @@ MONGO_EXPORT int gridfile_writer_done(gridfile *gfile) {
   }
   if( response == MONGO_OK ) {
     /* insert into files collection */
-    response = gridfs_insert_file(gfile->gfs, gfile->remote_name, gfile->id, gfile->length, gfile->content_type, gfile->flags, gfile->chunkSize);
+    response = gridfs_insert_file(gfile->gfs, 
+                                  gfile->remote_name, 
+                                  gfile->id, 
+                                  gfile->length, 
+                                  gfile->content_type, 
+                                  gfile->flags, 
+                                  gfile->chunkSize,
+                                  gfile->meta);
   }
   if( gfile->remote_name ) {
     bson_free(gfile->remote_name);
