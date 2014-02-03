@@ -802,7 +802,7 @@ MONGO_EXPORT int mongo_cmd_drop_collection( mongo *conn, const char *db,
         const char *collection, bson *out );
 
 /**
- * Add a database user.
+ * Legacy Add a database user.
  *
  * @param conn a mongo object.
  * @param db the database in which to add the user.
@@ -813,6 +813,19 @@ MONGO_EXPORT int mongo_cmd_drop_collection( mongo *conn, const char *db,
   */
 MONGO_EXPORT int mongo_cmd_add_user( mongo *conn, const char *db,
                                      const char *user, const char *pass );
+
+/**
+ * New security model Create a database user.
+ *
+ * @param conn a mongo object.
+ * @param db the database in which to add the user.
+ * @param user the user name
+ * @param pass the user password
+ *
+ * @return MONGO_OK or MONGO_ERROR.
+  */
+MONGO_EXPORT int mongo_cmd_create_user( mongo *conn, const char *db,
+                                       const char *user, const char *pass, const char* roles[] );
 
 /**
  * Authenticate a user.
