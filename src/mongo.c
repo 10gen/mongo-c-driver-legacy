@@ -30,13 +30,19 @@
 #include <string.h>
 #include <assert.h>
 
+#define MONGO_FREE(ptr) {\
+	if (NULL != ptr) \
+		bson_free_func((void *)(ptr)); \
+	ptr = NULL; \
+};
+
 MONGO_EXPORT mongo* mongo_alloc( void ) {
     return ( mongo* )bson_malloc( sizeof( mongo ) );
 }
 
 
 MONGO_EXPORT void mongo_dealloc(mongo* conn) {
-    bson_free( conn );
+    MONGO_FREE( conn );
 }
 
 MONGO_EXPORT int mongo_get_err(mongo* conn) {
@@ -61,7 +67,7 @@ static const char* _get_host_port(mongo_host_port* hp) {
 }
 
 
-/* Memory returned by this function MUST be freed with bson_free */
+/* Memory returned by this function MUST be freed with MONGO_FREE */
 MONGO_EXPORT const char* mongo_get_primary(mongo* conn) {
     mongo* conn_ = (mongo*)conn;
     if( !(conn_->connected) || (conn_->primary->host[0] == '\0') )
@@ -87,7 +93,7 @@ MONGO_EXPORT int mongo_get_host_count(mongo* conn) {
 }
 
 
-/* Memory returned by this function MUST be freed with bson_free */
+/* Memory returned by this function MUST be freed with MONGO_FREE */
 MONGO_EXPORT const char* mongo_get_host(mongo* conn, int i) {
     mongo_replica_set* r = conn->replica_set;
     mongo_host_port* hp;
@@ -107,7 +113,7 @@ MONGO_EXPORT mongo_write_concern* mongo_write_concern_alloc( void ) {
 
 
 MONGO_EXPORT void mongo_write_concern_dealloc( mongo_write_concern* write_concern ) {
-    bson_free( write_concern );
+    MONGO_FREE( write_concern );
 }
 
 
@@ -117,7 +123,7 @@ MONGO_EXPORT mongo_cursor* mongo_cursor_alloc( void ) {
 
 
 MONGO_EXPORT void mongo_cursor_dealloc( mongo_cursor* cursor ) {
-    bson_free( cursor );
+    MONGO_FREE( cursor );
 }
 
 
@@ -303,7 +309,7 @@ static mongo_message *mongo_message_create( size_t len , int id , int responseTo
     return mm;
 }
 
-/* Always calls bson_free(mm) */
+/* Always calls MONGO_FREE(mm) */
 static int mongo_message_send( mongo *conn, mongo_message *mm ) {
     mongo_header head; /* little endian */
     int res;
@@ -314,17 +320,17 @@ static int mongo_message_send( mongo *conn, mongo_message *mm ) {
 
     res = mongo_env_write_socket( conn, &head, sizeof( head ) );
     if( res != MONGO_OK ) {
-        bson_free( mm );
+        MONGO_FREE( mm );
         return res;
     }
 
     res = mongo_env_write_socket( conn, &mm->data, mm->head.len - sizeof( head ) );
     if( res != MONGO_OK ) {
-        bson_free( mm );
+        MONGO_FREE( mm );
         return res;
     }
 
-    bson_free( mm );
+    MONGO_FREE( mm );
     return MONGO_OK;
 }
 
@@ -366,7 +372,7 @@ static int mongo_read_response( mongo *conn, mongo_reply **reply ) {
 
     res = mongo_env_read_socket( conn, &out->objs, len - 16 - 20 ); /* was len-sizeof( head )-sizeof( fields ) */
     if( res != MONGO_OK ) {
-        bson_free( out );
+        MONGO_FREE( out );
         return res;
     }
 
@@ -500,7 +506,7 @@ static void mongo_replica_set_free_list( mongo_host_port **list ) {
     while( node != NULL ) {
         prev = node;
         node = node->next;
-        bson_free( prev );
+        MONGO_FREE( prev );
     }
 
     *list = NULL;
@@ -566,7 +572,7 @@ static void mongo_replica_set_check_seed( mongo *conn ) {
                     mongo_replica_set_add_node( &conn->replica_set->hosts,
                                                 host_port->host, host_port->port );
 
-                    bson_free( host_port );
+                    MONGO_FREE( host_port );
                     host_port = NULL;
                 }
             }
@@ -659,7 +665,7 @@ MONGO_EXPORT int mongo_replica_set_client( mongo *conn ) {
 
                 /* Primary found, so return. */
                 else if( conn->replica_set->primary_connected ) {
-                    bson_free( conn->primary );
+                    MONGO_FREE( conn->primary );
                     conn->primary = bson_malloc( sizeof( mongo_host_port ) );
                     snprintf( conn->primary->host, MAXHOSTNAMELEN, "%s", node->host );
                     conn->primary->port = node->port;
@@ -743,12 +749,12 @@ MONGO_EXPORT void mongo_destroy( mongo *conn ) {
     if( conn->replica_set ) {
         mongo_replica_set_free_list( &conn->replica_set->seeds );
         mongo_replica_set_free_list( &conn->replica_set->hosts );
-        bson_free( conn->replica_set->name );
-        bson_free( conn->replica_set );
+        MONGO_FREE( conn->replica_set->name );
+        MONGO_FREE( conn->replica_set );
         conn->replica_set = NULL;
     }
 
-    bson_free( conn->primary );
+    MONGO_FREE( conn->primary );
 
     mongo_clear_errors( conn );
 }
@@ -813,7 +819,7 @@ static int mongo_check_last_error( mongo *conn, const char *ns,
     char *cmd_ns = mongo_ns_to_cmd_db( ns );
 
     res = mongo_find_one( conn, cmd_ns, write_concern->cmd, bson_shared_empty( ), response );
-    bson_free( cmd_ns );
+    MONGO_FREE( cmd_ns );
 
     if (res == MONGO_OK &&
         (bson_find( it, response, "$err" ) == BSON_STRING ||
@@ -1266,7 +1272,7 @@ static int mongo_cursor_get_more( mongo_cursor *cursor ) {
         data = mongo_data_append32( data, &limit );
         mongo_data_append64( data, &cursor->reply->fields.cursorID );
 
-        bson_free( cursor->reply );
+        MONGO_FREE( cursor->reply );
         res = mongo_message_send( cursor->conn, mm );
         if( res != MONGO_OK ) {
             mongo_cursor_destroy( cursor );
@@ -1451,11 +1457,12 @@ MONGO_EXPORT int mongo_cursor_destroy( mongo_cursor *cursor ) {
         result = mongo_message_send( conn, mm );
     }
 
-    bson_free( cursor->reply );
-    bson_free( ( void * )cursor->ns );
+    MONGO_FREE( cursor->reply );
+	//bson_free( ( void * )cursor->ns );
+    MONGO_FREE( cursor->ns );
 
     if( cursor->flags & MONGO_CURSOR_MUST_FREE )
-        bson_free( cursor );
+        MONGO_FREE( cursor );
 
     return result;
 }
@@ -1592,7 +1599,7 @@ MONGO_EXPORT int mongo_run_command( mongo *conn, const char *db, const bson *com
     strcpy( ns+sl, ".$cmd" );
 
     res = mongo_find_one( conn, ns, command, bson_shared_empty( ), response );
-    bson_free( ns );
+    MONGO_FREE( ns );
 
     if (res == MONGO_OK && (!bson_find( it, response, "ok" ) || !bson_iterator_bool( it )) ) {
         conn->err = MONGO_COMMAND_FAILED;
@@ -1767,7 +1774,7 @@ MONGO_EXPORT int mongo_cmd_add_user( mongo *conn, const char *db, const char *us
 
     res = mongo_update( conn, ns, &user_obj, &pass_obj, MONGO_UPDATE_UPSERT, NULL );
 
-    bson_free( ns );
+    MONGO_FREE( ns );
     bson_destroy( &user_obj );
     bson_destroy( &pass_obj );
 
