@@ -130,7 +130,7 @@ MONGO_EXPORT int gridfile_writer_init( gridfile *gfile, gridfs *gfs, const char 
  *  @param gfile - GridFile to write to
  *  @param data - Pointer to buffer with data to be written
  *  @param length - Size of buffer with data to be written
- *  @return - Number of bytes written. If different from length assume somethind went wrong
+ *  @return - Number of bytes written. If different from length assume something went wrong
  */
 MONGO_EXPORT gridfs_offset gridfile_write_buffer( gridfile *gfile, const char *data, gridfs_offset length );
 
